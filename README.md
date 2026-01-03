@@ -18,23 +18,15 @@ Agents are loaded as plugins, and each thread can select a different agent.
 
 ## Quick start
 
-Run the TUI (defaults to local/in-process mode):
-
-```bash
-uvx lattice
-```
-
-Or clone and run locally:
-
 ```bash
 uv sync
-lattice
+uv run lattice
 ```
 
 Run the server (API + web UI):
 
 ```bash
-lattice server
+uv run lattice server
 ```
 
 Then open `http://localhost:8000`.

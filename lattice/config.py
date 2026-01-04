@@ -17,6 +17,10 @@ class StorageConfig:
     workspace_mode: Literal["central", "local"]
 
 
+def _coerce_path(value: Path | str) -> Path:
+    return Path(value).expanduser()
+
+
 def _resolve_workspace_mode(explicit: str | None) -> Literal["central", "local"]:
     value = (explicit or os.getenv("LATTICE_WORKSPACE_MODE") or "local").strip().lower()
     if value in {"local", "project", "cwd"}:
@@ -24,7 +28,16 @@ def _resolve_workspace_mode(explicit: str | None) -> Literal["central", "local"]
     return "central"
 
 
-def load_storage_config(
+def _resolve_path_override(explicit: Path | None, env_var: str) -> Path | None:
+    if explicit is not None:
+        return _coerce_path(explicit)
+    override = os.getenv(env_var)
+    if override:
+        return _coerce_path(override.strip())
+    return None
+
+
+def resolve_storage_config(
     *,
     project_root: Path | None = None,
     workspace_mode: str | None = None,
@@ -33,17 +46,14 @@ def load_storage_config(
 ) -> StorageConfig:
     env_project_root = os.getenv("LATTICE_PROJECT_ROOT")
     if project_root is not None:
-        resolved_project_root = project_root
+        resolved_project_root = _coerce_path(project_root)
     elif env_project_root:
-        resolved_project_root = Path(env_project_root)
+        resolved_project_root = _coerce_path(env_project_root)
     else:
         resolved_project_root = Path.cwd()
     resolved_mode = _resolve_workspace_mode(workspace_mode)
 
-    if data_dir is None:
-        data_dir_env = os.getenv("LATTICE_DATA_DIR")
-        if data_dir_env:
-            data_dir = Path(data_dir_env)
+    data_dir = _resolve_path_override(data_dir, "LATTICE_DATA_DIR")
 
     if data_dir is None:
         if resolved_mode == "local":
@@ -51,19 +61,15 @@ def load_storage_config(
         else:
             data_dir = Path.home() / ".lattice"
 
-    if workspace_dir is None:
-        workspace_dir_env = os.getenv("LATTICE_WORKSPACE_DIR")
-        if workspace_dir_env:
-            workspace_dir = Path(workspace_dir_env)
+    workspace_dir = _resolve_path_override(workspace_dir, "LATTICE_WORKSPACE_DIR")
 
     if workspace_dir is None:
         workspace_dir = data_dir / "workspace"
 
-    db_path = Path(os.getenv("LATTICE_DB_PATH", data_dir / "lattice.db"))
-    session_id_path = Path(os.getenv("LATTICE_SESSION_FILE", data_dir / "session_id"))
-
-    data_dir.mkdir(parents=True, exist_ok=True)
-    workspace_dir.mkdir(parents=True, exist_ok=True)
+    db_path_env = os.getenv("LATTICE_DB_PATH")
+    db_path = _coerce_path(db_path_env) if db_path_env else data_dir / "lattice.db"
+    session_path_env = os.getenv("LATTICE_SESSION_FILE")
+    session_id_path = _coerce_path(session_path_env) if session_path_env else data_dir / "session_id"
 
     return StorageConfig(
         data_dir=data_dir,
@@ -75,6 +81,28 @@ def load_storage_config(
     )
 
 
+def ensure_storage_dirs(config: StorageConfig) -> None:
+    config.data_dir.mkdir(parents=True, exist_ok=True)
+    config.workspace_dir.mkdir(parents=True, exist_ok=True)
+
+
+def load_storage_config(
+    *,
+    project_root: Path | None = None,
+    workspace_mode: str | None = None,
+    data_dir: Path | None = None,
+    workspace_dir: Path | None = None,
+) -> StorageConfig:
+    config = resolve_storage_config(
+        project_root=project_root,
+        workspace_mode=workspace_mode,
+        data_dir=data_dir,
+        workspace_dir=workspace_dir,
+    )
+    ensure_storage_dirs(config)
+    return config
+
+
 def load_or_create_session_id(path: Path, *, env_var: str = "LATTICE_SESSION_ID") -> str:
     override = os.getenv(env_var)
     if override:
@@ -82,5 +110,6 @@ def load_or_create_session_id(path: Path, *, env_var: str = "LATTICE_SESSION_ID"
     if path.exists():
         return path.read_text(encoding="utf-8").strip()
     session_id = f"tui-{uuid.uuid4()}"
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(session_id, encoding="utf-8")
     return session_id

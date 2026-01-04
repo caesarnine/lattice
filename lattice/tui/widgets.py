@@ -76,9 +76,7 @@ class ToolCall(Widget):
         super().__init__(**kwargs)
         self.tool_name = tool_name
         self.args_raw = (
-            args
-            if isinstance(args, str)
-            else json.dumps(args) if isinstance(args, dict) else str(args)
+            args if isinstance(args, str) else json.dumps(args) if isinstance(args, dict) else str(args)
         )
         self.args_preview = self._format_args_preview(self.args_raw)
         self.tool_call_id = tool_call_id

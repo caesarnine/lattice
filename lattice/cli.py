@@ -308,9 +308,7 @@ def _is_same_project(server_url: str, project_root: Path) -> bool:
     return actual == expected
 
 
-def _create_tui_client(
-    args: argparse.Namespace, *, project_root: Path
-) -> TuiClientContext:
+def _create_tui_client(args: argparse.Namespace, *, project_root: Path) -> TuiClientContext:
     agent_spec = getattr(args, "agent", None)
     agent_specs = _parse_agent_specs(getattr(args, "agents", None))
 
@@ -359,12 +357,14 @@ def _apply_server_env_defaults(
     default_agent: str | None,
     agent_specs: list[str] | None,
 ) -> None:
-    os.environ.setdefault("LATTICE_PROJECT_ROOT", str(project_root))
-    os.environ.setdefault("LATTICE_WORKSPACE_MODE", workspace_mode)
-    if default_agent:
-        os.environ["AGENT_DEFAULT"] = str(default_agent)
-    if agent_specs:
-        os.environ["AGENT_PLUGINS"] = ",".join(agent_specs)
+    _populate_server_env(
+        os.environ,
+        project_root=project_root,
+        workspace_mode=workspace_mode,
+        default_agent=default_agent,
+        agent_specs=agent_specs,
+        use_defaults=True,
+    )
 
 
 def _build_server_env(
@@ -375,13 +375,38 @@ def _build_server_env(
     agent_specs: list[str] | None,
 ) -> dict[str, str]:
     env = os.environ.copy()
-    env["LATTICE_PROJECT_ROOT"] = str(project_root)
-    env["LATTICE_WORKSPACE_MODE"] = workspace_mode
-    if default_agent is not None:
-        env["AGENT_DEFAULT"] = str(default_agent)
-    if agent_specs is not None:
-        env["AGENT_PLUGINS"] = ",".join(agent_specs)
+    _populate_server_env(
+        env,
+        project_root=project_root,
+        workspace_mode=workspace_mode,
+        default_agent=default_agent,
+        agent_specs=agent_specs,
+        use_defaults=False,
+    )
     return env
+
+
+def _populate_server_env(
+    env: dict[str, str],
+    *,
+    project_root: Path,
+    workspace_mode: str,
+    default_agent: str | None,
+    agent_specs: list[str] | None,
+    use_defaults: bool,
+) -> None:
+    def set_value(key: str, value: str) -> None:
+        if use_defaults:
+            env.setdefault(key, value)
+        else:
+            env[key] = value
+
+    set_value("LATTICE_PROJECT_ROOT", str(project_root))
+    set_value("LATTICE_WORKSPACE_MODE", workspace_mode)
+    if default_agent is not None:
+        set_value("AGENT_DEFAULT", str(default_agent))
+    if agent_specs is not None:
+        set_value("AGENT_PLUGINS", ",".join(agent_specs))
 
 
 def _build_server_context(server_url: str) -> TuiClientContext:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib
 import inspect
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable, Sequence, get_args
@@ -89,8 +89,11 @@ def _wrap_agent_factory(obj: Any, *, name: str) -> CreateAgentFn:
             if not isinstance(created, Agent):
                 raise TypeError(f"{name} factory returned {type(created)!r}, expected pydantic_ai.Agent")
             return lambda model: created
+        if arity is not None and arity > 1:
+            raise TypeError(f"{name} factory must accept 0 or 1 arguments, got {arity}")
         return lambda model: obj(model)
     raise TypeError(f"Unsupported agent spec type: {type(obj)!r}")
+
 
 def _slugify(value: str) -> str:
     value = value.strip().casefold()
@@ -124,11 +127,11 @@ def normalize_plugin(
         plugin = AgentPlugin(id=plugin_id, name=plugin_name, create_agent=create_agent)
 
     if name:
-        plugin = AgentPlugin(**{**plugin.__dict__, "name": name})
+        plugin = replace(plugin, name=name)
     if id:
-        plugin = AgentPlugin(**{**plugin.__dict__, "id": id})
+        plugin = replace(plugin, id=id)
     if create_deps is not None:
-        plugin = AgentPlugin(**{**plugin.__dict__, "create_deps": create_deps})
+        plugin = replace(plugin, create_deps=create_deps)
     return plugin
 
 
@@ -140,9 +143,7 @@ def load_plugin(
     deps_spec: str | None = None,
 ) -> AgentPlugin:
     resolved_spec = (
-        (plugin_spec or "").strip()
-        or (os.getenv(AGENT_PLUGIN_ENV) or "").strip()
-        or DEFAULT_PLUGIN_SPEC
+        (plugin_spec or "").strip() or (os.getenv(AGENT_PLUGIN_ENV) or "").strip() or DEFAULT_PLUGIN_SPEC
     )
     obj = _load_symbol(resolved_spec)
 
@@ -155,13 +156,11 @@ def load_plugin(
 
     plugin = normalize_plugin(obj, id=id, name=name, create_deps=create_deps)
     if plugin.validate_model is None:
-        plugin = AgentPlugin(**{**plugin.__dict__, "validate_model": infer_model})
+        plugin = replace(plugin, validate_model=infer_model)
     if plugin.list_models is None:
-        plugin = AgentPlugin(
-            **{
-                **plugin.__dict__,
-                "list_models": lambda: list_known_models(default_model=plugin.default_model),
-            }
+        plugin = replace(
+            plugin,
+            list_models=lambda: list_known_models(default_model=plugin.default_model),
         )
     return plugin
 

@@ -1,23 +1,14 @@
 from __future__ import annotations
 
-import json
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 if TYPE_CHECKING:
     from lattice.cli import ConnectionInfo
 
 from pydantic_ai.ui.vercel_ai.request_types import (
-    DynamicToolInputAvailablePart,
-    DynamicToolOutputAvailablePart,
-    DynamicToolOutputErrorPart,
-    FileUIPart,
-    ReasoningUIPart,
     SubmitMessage,
     TextUIPart,
-    ToolInputAvailablePart,
-    ToolOutputAvailablePart,
-    ToolOutputErrorPart,
     UIMessage,
 )
 from textual import on
@@ -29,7 +20,8 @@ from textual.widgets import Input, Static
 from lattice.client import AgentClient
 from lattice.core.session import generate_thread_id
 from lattice.tui.commands import CommandSuggester, ParsedCommand, build_help_text, parse_command
-from lattice.tui.widgets import ChatMessage, ToolCall
+from lattice.tui.rendering import ChatRenderer
+from lattice.tui.state import AgentSelectionState, ModelSelectionState
 
 
 class AgentApp(App):
@@ -112,15 +104,8 @@ class AgentApp(App):
         super().__init__()
         self.session_id = "..."
         self.thread_id = "..."  # Placeholder until mounted
-        self.agent_id: str | None = None
-        self.agent_name: str | None = None
-        self._default_agent: str | None = None
-        self._agent_cache: list[tuple[str, str]] | None = None
-        self._agent_loading = False
-        self.model_name: str | None = None
-        self._default_model: str | None = None
-        self._model_cache: list[str] | None = None
-        self._model_loading = False
+        self.agent_state = AgentSelectionState()
+        self.model_state = ModelSelectionState()
         self.client = client
         self.connection_info = connection_info
         self._command_suggester = CommandSuggester(
@@ -128,11 +113,11 @@ class AgentApp(App):
             agent_provider=self._get_agent_suggestions,
         )
 
+        self._renderer = ChatRenderer(
+            get_chat=self._get_chat_container,
+            scroll_to_bottom=self._scroll_to_bottom,
+        )
         self._worker = None
-        self._current_assistant: Optional[ChatMessage] = None
-        self._current_thinking: Optional[ChatMessage] = None
-        self._tool_calls: dict[str, ToolCall] = {}
-        self._message_map: dict[str, ChatMessage] = {}
         self._mounted = False
         self._event_handlers = {
             "text-start": self._on_text_start_event,
@@ -194,7 +179,7 @@ class AgentApp(App):
             self._set_status("")
 
     def action_clear_chat(self) -> None:
-        chat = self.query_one("#chat-scroll", VerticalScroll)
+        chat = self._get_chat_container()
         chat.remove_children()
         self._reset_message_state()
 
@@ -220,9 +205,9 @@ class AgentApp(App):
     @on(Input.Changed, "#input")
     async def handle_input_changed(self, event: Input.Changed) -> None:
         value = event.value.strip()
-        if value.startswith("/model") and self._model_cache is None and not self._model_loading:
+        if value.startswith("/model") and self.model_state.cache is None and not self.model_state.loading:
             self.run_worker(self._prefetch_models(), exclusive=False)
-        if value.startswith("/agent") and self._agent_cache is None and not self._agent_loading:
+        if value.startswith("/agent") and self.agent_state.cache is None and not self.agent_state.loading:
             self.run_worker(self._prefetch_agents(), exclusive=False)
 
     async def _dispatch_command(self, command: ParsedCommand) -> bool:
@@ -286,10 +271,12 @@ class AgentApp(App):
         parts = command.args
         if not parts or parts[0].lower() in {"current", "show"}:
             await self._refresh_agent()
-            if self.agent_name and self.agent_id:
-                self._add_system_message(f"Current agent: {self.agent_name} ({self.agent_id})")
+            if self.agent_state.current_name and self.agent_state.current_id:
+                self._add_system_message(
+                    f"Current agent: {self.agent_state.current_name} ({self.agent_state.current_id})"
+                )
             else:
-                self._add_system_message(f"Current agent: {self.agent_id or '(unknown)'}")
+                self._add_system_message(f"Current agent: {self.agent_state.current_id or '(unknown)'}")
             return
 
         subcommand = parts[0].lower()
@@ -352,7 +339,7 @@ class AgentApp(App):
         parts = command.args
         if not parts or parts[0].lower() in {"current", "show"}:
             await self._refresh_model()
-            current = self.model_name or "(unknown)"
+            current = self.model_state.current or "(unknown)"
             self._add_system_message(f"Current model: {current}")
             return
 
@@ -399,52 +386,52 @@ class AgentApp(App):
         await self._set_session_model(model_name)
 
     async def _load_models(self) -> list[str]:
-        if self._model_cache is not None:
-            return self._model_cache
-        if self._model_loading:
-            return self._model_cache or []
-        self._model_loading = True
+        if self.model_state.cache is not None:
+            return self.model_state.cache
+        if self.model_state.loading:
+            return self.model_state.cache or []
+        self.model_state.loading = True
         try:
             payload = await self.client.list_models()
         except Exception as exc:
             self._add_system_message(f"Failed to load models: {exc}")
-            self._model_loading = False
+            self.model_state.loading = False
             return []
-        self._model_cache = payload.models
-        self._default_model = payload.default_model
-        self._model_loading = False
-        return self._model_cache
+        self.model_state.cache = payload.models
+        self.model_state.default = payload.default_model
+        self.model_state.loading = False
+        return self.model_state.cache
 
     async def _prefetch_models(self) -> None:
         await self._load_models()
 
     def _get_model_suggestions(self) -> list[str]:
-        return self._model_cache or []
+        return self.model_state.cache or []
 
     async def _load_agents(self) -> list[tuple[str, str]]:
-        if self._agent_cache is not None:
-            return self._agent_cache
-        if self._agent_loading:
-            return self._agent_cache or []
-        self._agent_loading = True
+        if self.agent_state.cache is not None:
+            return self.agent_state.cache
+        if self.agent_state.loading:
+            return self.agent_state.cache or []
+        self.agent_state.loading = True
         try:
             payload = await self.client.list_agents()
         except Exception as exc:
             self._add_system_message(f"Failed to load agents: {exc}")
-            self._agent_loading = False
+            self.agent_state.loading = False
             return []
-        self._agent_cache = [(agent.id, agent.name) for agent in payload.agents]
-        self._default_agent = payload.default_agent
-        self._agent_loading = False
-        return self._agent_cache
+        self.agent_state.cache = [(agent.id, agent.name) for agent in payload.agents]
+        self.agent_state.default_id = payload.default_agent
+        self.agent_state.loading = False
+        return self.agent_state.cache
 
     async def _prefetch_agents(self) -> None:
         await self._load_agents()
 
     def _get_agent_suggestions(self) -> list[str]:
-        if not self._agent_cache:
+        if not self.agent_state.cache:
             return []
-        return [agent_id for agent_id, _ in self._agent_cache]
+        return [agent_id for agent_id, _ in self.agent_state.cache]
 
     async def _refresh_agent(self) -> None:
         try:
@@ -452,9 +439,9 @@ class AgentApp(App):
         except Exception as exc:
             self._add_system_message(f"Failed to load agent: {exc}")
             return
-        self.agent_id = payload.agent
-        self.agent_name = payload.agent_name
-        self._default_agent = payload.default_agent
+        self.agent_state.current_id = payload.agent
+        self.agent_state.current_name = payload.agent_name
+        self.agent_state.default_id = payload.default_agent
         self._update_header()
 
     async def _resolve_agent_id(self, value: str) -> str | None:
@@ -483,12 +470,12 @@ class AgentApp(App):
             self._add_system_message(f"Failed to set agent: {exc}")
             return
 
-        self.agent_id = payload.agent
-        self.agent_name = payload.agent_name
-        self._default_agent = payload.default_agent
+        self.agent_state.current_id = payload.agent
+        self.agent_state.current_name = payload.agent_name
+        self.agent_state.default_id = payload.default_agent
         await self._refresh_model()
 
-        label = self.agent_name or self.agent_id or "(unknown)"
+        label = self.agent_state.label()
         if payload.is_default:
             self._add_system_message(f"Agent reset to default: {label}")
         else:
@@ -500,8 +487,8 @@ class AgentApp(App):
         except Exception as exc:
             self._add_system_message(f"Failed to load model: {exc}")
             return
-        self.model_name = payload.model
-        self._default_model = payload.default_model
+        self.model_state.current = payload.model
+        self.model_state.default = payload.default_model
         self._update_header()
 
     async def _set_session_model(self, model_name: str | None) -> None:
@@ -510,8 +497,8 @@ class AgentApp(App):
         except Exception as exc:
             self._add_system_message(f"Failed to set model: {exc}")
             return
-        self.model_name = payload.model
-        self._default_model = payload.default_model
+        self.model_state.current = payload.model
+        self.model_state.default = payload.default_model
         self._update_header()
         if payload.is_default:
             self._add_system_message(f"Model reset to default: {payload.model}")
@@ -568,23 +555,23 @@ class AgentApp(App):
 
     def _on_text_start_event(self, event: dict[str, Any]) -> None:
         message_id = str(event.get("id") or uuid4().hex)
-        self._handle_text_message_start(message_id)
+        self._renderer.handle_text_start(message_id)
 
     def _on_text_delta_event(self, event: dict[str, Any]) -> None:
         message_id = str(event.get("id") or "")
         delta = str(event.get("delta") or "")
         if message_id:
-            self._handle_text_message_content(message_id, delta)
+            self._renderer.handle_text_delta(message_id, delta)
 
     def _on_reasoning_start_event(self, event: dict[str, Any]) -> None:
         message_id = str(event.get("id") or uuid4().hex)
-        self._handle_thinking_start(message_id)
+        self._renderer.handle_thinking_start(message_id)
 
     def _on_reasoning_delta_event(self, event: dict[str, Any]) -> None:
         message_id = str(event.get("id") or "")
         delta = str(event.get("delta") or "")
         if message_id:
-            self._handle_thinking_delta(message_id, delta)
+            self._renderer.handle_thinking_delta(message_id, delta)
 
     def _on_tool_input_start_event(self, event: dict[str, Any]) -> None:
         self._handle_tool_input_event(event, include_args=False)
@@ -593,7 +580,7 @@ class AgentApp(App):
         tool_call_id = str(event.get("toolCallId") or "")
         delta = str(event.get("inputTextDelta") or "")
         if tool_call_id and delta:
-            self._append_tool_args(tool_call_id, delta)
+            self._renderer.append_tool_args(tool_call_id, delta)
 
     def _on_tool_input_available_event(self, event: dict[str, Any]) -> None:
         self._handle_tool_input_event(event, include_args=True)
@@ -604,254 +591,51 @@ class AgentApp(App):
             return
         tool_name = str(event.get("toolName") or "tool")
         args = event.get("input") if include_args else ""
-        self._add_tool_call(tool_name, args, tool_call_id)
+        self._renderer.add_tool_call(tool_name, args, tool_call_id)
 
     def _on_tool_output_available_event(self, event: dict[str, Any]) -> None:
         tool_call_id = str(event.get("toolCallId") or "")
         if tool_call_id:
-            self._set_tool_result(tool_call_id, event.get("output"))
+            self._renderer.set_tool_result(tool_call_id, event.get("output"))
 
     def _on_tool_output_error_event(self, event: dict[str, Any]) -> None:
         tool_call_id = str(event.get("toolCallId") or "")
         error_text = str(event.get("errorText") or "Tool error")
         if tool_call_id:
-            self._set_tool_result(tool_call_id, {"stderr": error_text, "exit_code": 1})
+            self._renderer.set_tool_result(tool_call_id, {"stderr": error_text, "exit_code": 1})
 
     def _on_error_event(self, event: dict[str, Any]) -> None:
         error_text = str(event.get("errorText") or "Unknown error")
         self._add_system_message(f"Run error: {error_text}")
-
-    def _handle_text_message_start(self, message_id: str, role: str = "assistant") -> None:
-        msg = ChatMessage(role=role)
-        if role == "assistant":
-            self._current_assistant = msg
-        chat = self.query_one("#chat-scroll", VerticalScroll)
-        chat.mount(msg)
-        self._message_map[message_id] = msg
-        self._scroll_to_bottom()
-
-    def _handle_text_message_content(self, message_id: str, delta: str) -> None:
-        msg = self._message_map.get(message_id)
-        if msg is None:
-            msg = ChatMessage(role="assistant")
-            chat = self.query_one("#chat-scroll", VerticalScroll)
-            chat.mount(msg)
-            self._message_map[message_id] = msg
-            self._current_assistant = msg
-            self._scroll_to_bottom()
-        msg.append_content(delta)
-
-    def _handle_thinking_start(self, message_id: str) -> None:
-        msg = ChatMessage(role="thinking")
-        chat = self.query_one("#chat-scroll", VerticalScroll)
-        chat.mount(msg)
-        self._message_map[message_id] = msg
-        self._current_thinking = msg
-        self._scroll_to_bottom()
-
-    def _handle_thinking_delta(self, message_id: str, delta: str) -> None:
-        msg = self._message_map.get(message_id)
-        if msg is None:
-            msg = ChatMessage(role="thinking")
-            chat = self.query_one("#chat-scroll", VerticalScroll)
-            chat.mount(msg)
-            self._message_map[message_id] = msg
-            self._current_thinking = msg
-            self._scroll_to_bottom()
-        msg.append_content(delta)
-
-    def _hydrate_ui_messages(self, messages: list[UIMessage]) -> None:
-        for message in messages:
-            if message.role == "system":
-                content = self._collect_ui_text(message.parts)
-                if content:
-                    self._add_system_message(content)
-                continue
-            if message.role == "user":
-                content = self._collect_ui_text(message.parts)
-                if content:
-                    self._add_user_message(content)
-                continue
-            if message.role == "assistant":
-                self._render_assistant_parts(message.parts)
-
-    def _collect_ui_text(self, parts: list[Any]) -> str:
-        chunks: list[str] = []
-        for part in parts:
-            if isinstance(part, TextUIPart):
-                if part.text:
-                    chunks.append(part.text)
-            elif isinstance(part, FileUIPart):
-                label = part.filename or part.media_type or "file"
-                chunks.append(f"[{label}]")
-        return "\n".join(chunks).strip()
-
-    def _render_assistant_parts(self, parts: list[Any]) -> None:
-        buffer: list[str] = []
-
-        def flush_buffer() -> None:
-            if not buffer:
-                return
-            content = "".join(buffer).strip()
-            buffer.clear()
-            if content:
-                self._add_assistant_message(content)
-
-        for part in parts:
-            if isinstance(part, TextUIPart):
-                buffer.append(part.text)
-                continue
-            if isinstance(part, ReasoningUIPart):
-                flush_buffer()
-                if part.text:
-                    self._add_thinking_message(part.text)
-                continue
-            if isinstance(part, FileUIPart):
-                label = part.filename or part.media_type or "file"
-                buffer.append(f"[{label}]")
-                continue
-            if isinstance(part, ToolInputAvailablePart):
-                flush_buffer()
-                tool_name = part.type.removeprefix("tool-")
-                self._add_tool_call(tool_name, part.input or "", part.tool_call_id)
-                continue
-            if isinstance(part, ToolOutputAvailablePart):
-                flush_buffer()
-                tool_name = part.type.removeprefix("tool-")
-                self._add_tool_call(tool_name, part.input or "", part.tool_call_id)
-                if part.output is not None:
-                    self._set_tool_result(part.tool_call_id, part.output)
-                continue
-            if isinstance(part, ToolOutputErrorPart):
-                flush_buffer()
-                tool_name = part.type.removeprefix("tool-")
-                self._add_tool_call(tool_name, part.input or "", part.tool_call_id)
-                self._set_tool_result(part.tool_call_id, {"stderr": part.error_text, "exit_code": 1})
-                continue
-            if isinstance(part, DynamicToolInputAvailablePart):
-                flush_buffer()
-                self._add_tool_call(part.tool_name, part.input or "", part.tool_call_id)
-                continue
-            if isinstance(part, DynamicToolOutputAvailablePart):
-                flush_buffer()
-                self._add_tool_call(part.tool_name, part.input or "", part.tool_call_id)
-                if part.output is not None:
-                    self._set_tool_result(part.tool_call_id, part.output)
-                continue
-            if isinstance(part, DynamicToolOutputErrorPart):
-                flush_buffer()
-                self._add_tool_call(part.tool_name, part.input or "", part.tool_call_id)
-                self._set_tool_result(part.tool_call_id, {"stderr": part.error_text, "exit_code": 1})
-                continue
-
-        flush_buffer()
 
     # -------------------------------------------------------------------------
     # Message Helpers
     # -------------------------------------------------------------------------
 
     def _reset_message_state(self) -> None:
-        self._current_assistant = None
-        self._current_thinking = None
-        self._tool_calls = {}
-        self._message_map = {}
+        self._renderer.reset()
 
     def _add_user_message(self, content: str) -> None:
-        chat = self.query_one("#chat-scroll", VerticalScroll)
-        chat.mount(ChatMessage(role="user", content=content))
-        self._scroll_to_bottom()
+        self._renderer.add_user_message(content)
 
     def _add_assistant_message(self, content: str) -> None:
-        chat = self.query_one("#chat-scroll", VerticalScroll)
-        msg = ChatMessage(role="assistant", content=content)
-        chat.mount(msg)
-        self._current_assistant = msg
-        self._scroll_to_bottom()
+        self._renderer.add_assistant_message(content)
 
     def _add_thinking_message(self, content: str) -> None:
-        chat = self.query_one("#chat-scroll", VerticalScroll)
-        msg = ChatMessage(role="thinking", content=content)
-        chat.mount(msg)
-        self._current_thinking = msg
-        self._scroll_to_bottom()
+        self._renderer.add_thinking_message(content)
 
     def _add_system_message(self, content: str) -> None:
-        chat = self.query_one("#chat-scroll", VerticalScroll)
-        chat.mount(ChatMessage(role="system", content=content))
-        self._scroll_to_bottom()
+        self._renderer.add_system_message(content)
 
-    def _add_tool_call(self, tool_name: str, args: Any, tool_call_id: str) -> None:
-        tool_widget = self._tool_calls.get(tool_call_id)
-        if tool_widget is None:
-            tool_widget = ToolCall(tool_name, args, tool_call_id)
-            self._tool_calls[tool_call_id] = tool_widget
-            chat = self.query_one("#chat-scroll", VerticalScroll)
-            chat.mount(tool_widget)
-            self._scroll_to_bottom()
-            return
-
-        tool_widget.update_tool_name(tool_name)
-        if args:
-            payload = args if isinstance(args, str) else json.dumps(args)
-            tool_widget.append_args(payload)
-
-    def _append_tool_args(self, tool_call_id: str, delta: str) -> None:
-        tool_widget = self._tool_calls.get(tool_call_id)
-        if tool_widget is None:
-            tool_widget = ToolCall("tool", "", tool_call_id)
-            self._tool_calls[tool_call_id] = tool_widget
-            chat = self.query_one("#chat-scroll", VerticalScroll)
-            chat.mount(tool_widget)
-        tool_widget.append_args(delta)
-
-    def _set_tool_result(self, tool_call_id: str, result: Any) -> None:
-        if tool_call_id not in self._tool_calls:
-            return
-
-        tool_widget = self._tool_calls[tool_call_id]
-
-        data = result
-        if hasattr(data, "content"):
-            data = data.content
-        if hasattr(data, "data"):
-            data = data.data
-
-        output = ""
-        exit_code = 0
-        timed_out = False
-        stdout = ""
-        stderr = ""
-
-        if hasattr(data, "stdout"):
-            stdout = data.stdout or ""
-            stderr = data.stderr or ""
-            exit_code = data.exit_code
-            timed_out = bool(getattr(data, "timed_out", False))
-        elif isinstance(data, dict):
-            stdout = data.get("stdout", "") or ""
-            stderr = data.get("stderr", "") or ""
-            exit_code = data.get("exit_code", 0)
-            timed_out = bool(data.get("timed_out", False))
-        else:
-            output = str(data)
-
-        if stdout or stderr:
-            if stdout and stderr:
-                output = f"{stdout}\\n{stderr}"
-            else:
-                output = stdout or stderr
-
-        output = self._truncate_output(output)
-        tool_widget.set_result(output, exit_code, timed_out=timed_out)
-
-    def _truncate_output(self, output: str, limit: int = 4000) -> str:
-        if len(output) <= limit:
-            return output
-        return output[:limit] + f"\\n... (truncated, {len(output) - limit} chars)"
+    def _hydrate_ui_messages(self, messages: list[UIMessage]) -> None:
+        self._renderer.hydrate_ui_messages(messages)
 
     def _scroll_to_bottom(self) -> None:
-        chat = self.query_one("#chat-scroll", VerticalScroll)
+        chat = self._get_chat_container()
         chat.scroll_end(animate=False)
+
+    def _get_chat_container(self) -> VerticalScroll:
+        return self.query_one("#chat-scroll", VerticalScroll)
 
     def _set_status(self, text: str, streaming: bool = False) -> None:
         status = self.query_one("#status", Static)
@@ -876,8 +660,8 @@ class AgentApp(App):
 
     async def _load_thread_state(self, thread_id: str) -> None:
         self.thread_id = thread_id
-        self.agent_id = None
-        self.agent_name = None
+        self.agent_state.current_id = None
+        self.agent_state.current_name = None
         self._update_header()
         await self._refresh_agent()
         try:
@@ -906,9 +690,7 @@ class AgentApp(App):
         if remaining:
             self.action_clear_chat()
             await self._load_thread_state(remaining[0])
-            self._add_system_message(
-                f"Deleted '{thread_id}'. Switched to '{remaining[0]}'."
-            )
+            self._add_system_message(f"Deleted '{thread_id}'. Switched to '{remaining[0]}'.")
         else:
             self.action_clear_chat()
             await self.client.create_thread(self.session_id, "default")
@@ -923,16 +705,16 @@ class AgentApp(App):
 
         # Build header parts: thread | agent | model | connection
         parts = [self.thread_id]
-        if self.agent_name:
-            parts.append(self.agent_name)
-        elif self.agent_id:
-            parts.append(self.agent_id)
-        if self.model_name:
-            parts.append(self.model_name)
+        if self.agent_state.current_name:
+            parts.append(self.agent_state.current_name)
+        elif self.agent_state.current_id:
+            parts.append(self.agent_state.current_id)
+        if self.model_state.current:
+            parts.append(self.model_state.current)
         if self.connection_info:
             parts.append(self.connection_info.header_label)
 
-        header_left.update(self.agent_name or "Agent")
+        header_left.update(self.agent_state.current_name or "Agent")
         header_right.update(" | ".join(parts))
 
 

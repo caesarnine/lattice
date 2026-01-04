@@ -34,9 +34,7 @@ def default_agent_selection(ctx: AppContext) -> AgentSelection:
     )
 
 
-def select_agent_for_thread(
-    ctx: AppContext, *, session_id: str, thread_id: str
-) -> AgentSelection:
+def select_agent_for_thread(ctx: AppContext, *, session_id: str, thread_id: str) -> AgentSelection:
     stored = ctx.store.get_thread_settings(session_id, thread_id).agent
     if stored:
         resolved = ctx.registry.resolve_id(stored, allow_fuzzy=False)

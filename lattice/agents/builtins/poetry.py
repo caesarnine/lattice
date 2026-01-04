@@ -5,7 +5,7 @@ from functools import lru_cache
 from pydantic_ai import Agent, RunContext
 
 from lattice.agents.plugin import AgentPlugin, list_known_models
-from lattice.env import AGENT_MODEL, LATTICE_MODEL, first_env
+from lattice.settings.env import AGENT_MODEL, LATTICE_MODEL, first_env
 
 
 SYSTEM_PROMPT = """\

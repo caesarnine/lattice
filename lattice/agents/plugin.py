@@ -11,7 +11,7 @@ from pydantic_ai import Agent
 from pydantic_ai.models import KnownModelName, infer_model
 from pydantic_ai.ui.vercel_ai.request_types import RequestData
 
-from lattice.env import AGENT_PLUGIN, read_env
+from lattice.settings.env import AGENT_PLUGIN, read_env
 
 DEFAULT_PLUGIN_SPEC = "lattice.agents.builtins.lattice:plugin"
 

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Iterable
 
 from lattice.agents.plugin import AgentPlugin, load_plugin
-from lattice.env import AGENT_DEFAULT, AGENT_PLUGINS, read_env
+from lattice.settings.env import AGENT_DEFAULT, AGENT_PLUGINS, read_env
 
 logger = logging.getLogger(__name__)
 

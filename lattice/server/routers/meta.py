@@ -5,13 +5,13 @@ import os
 
 from fastapi import APIRouter, Depends
 
-from lattice.config import load_or_create_session_id
-from lattice.core.threads import create_thread, list_threads
+from lattice.domain.threads import create_thread, list_threads
 from lattice.protocol.models import ServerInfoResponse, SessionBootstrapResponse
 from lattice.server.context import AppContext
 from lattice.server.deps import get_ctx
-from lattice.server.services.agents import get_default_plugin
-from lattice.server.services.state import build_thread_state
+from lattice.domain.agents import get_default_plugin
+from lattice.server.state import build_thread_state
+from lattice.settings.storage import load_or_create_session_id
 
 router = APIRouter()
 
@@ -23,7 +23,7 @@ async def health() -> dict[str, str]:
 
 @router.get("/info", response_model=ServerInfoResponse)
 async def info(ctx: AppContext = Depends(get_ctx)) -> ServerInfoResponse:
-    default_plugin = get_default_plugin(ctx)
+    default_plugin = get_default_plugin(ctx.registry)
     try:
         version = importlib.metadata.version("lattice")
     except importlib.metadata.PackageNotFoundError:  # pragma: no cover
@@ -57,7 +57,7 @@ async def api_session_bootstrap(
 
     if selected_thread not in threads:
         try:
-            create_thread(ctx.store, session_id=session_id, thread_id=selected_thread, workspace=ctx.workspace)
+            create_thread(ctx.store, session_id=session_id, thread_id=selected_thread)
         except ValueError:
             pass
         threads = list_threads(ctx.store, session_id)

@@ -9,8 +9,8 @@ from fastapi import FastAPI
 
 from lattice.client.api import AgentClient
 from lattice.agents.registry import AgentRegistry, load_registry
-from lattice.config import StorageConfig, load_storage_config
 from lattice.server.app import create_app
+from lattice.settings.storage import StorageConfig, load_storage_config
 
 
 @dataclass(frozen=True)

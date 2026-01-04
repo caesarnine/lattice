@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from pathlib import Path
 from typing import Sequence
 
 from pydantic_ai.messages import ModelMessage
 
-from lattice.core.session import SessionStore
+from lattice.domain.sessions import SessionStore
 
 
 class ThreadAlreadyExistsError(ValueError):
@@ -34,11 +33,10 @@ def create_thread(
     *,
     session_id: str,
     thread_id: str,
-    workspace: Path,
 ) -> None:
     if thread_exists(store, session_id=session_id, thread_id=thread_id):
         raise ThreadAlreadyExistsError("Thread already exists.")
-    store.save_thread(session_id, thread_id, workspace=workspace, messages=[])
+    store.save_thread(session_id, thread_id, messages=[])
 
 
 def delete_thread(store: SessionStore, *, session_id: str, thread_id: str) -> None:
@@ -46,9 +44,9 @@ def delete_thread(store: SessionStore, *, session_id: str, thread_id: str) -> No
     store.delete_thread(session_id, thread_id)
 
 
-def clear_thread(store: SessionStore, *, session_id: str, thread_id: str, workspace: Path) -> None:
+def clear_thread(store: SessionStore, *, session_id: str, thread_id: str) -> None:
     require_thread(store, session_id=session_id, thread_id=thread_id)
-    store.save_thread(session_id, thread_id, workspace=workspace, messages=[])
+    store.save_thread(session_id, thread_id, messages=[])
 
 
 def load_thread_messages(
@@ -56,8 +54,8 @@ def load_thread_messages(
     *,
     session_id: str,
     thread_id: str,
-    workspace: Path,
 ) -> Sequence[ModelMessage]:
-    require_thread(store, session_id=session_id, thread_id=thread_id)
-    thread_state = store.load_thread(session_id, thread_id, workspace=workspace)
+    thread_state = store.load_thread(session_id, thread_id)
+    if thread_state is None:
+        raise ThreadNotFoundError(f"Thread '{thread_id}' not found.")
     return thread_state.messages

@@ -8,8 +8,8 @@ from typing import Sequence
 
 from pydantic_ai.messages import ModelMessage
 
-from lattice.core.messages import dump_messages, load_messages
-from lattice.core.session import SessionStore, ThreadSettings, ThreadState
+from lattice.domain.messages import dump_messages, load_messages
+from lattice.domain.sessions import SessionStore, ThreadSettings, ThreadState
 
 
 class SQLiteSessionStore(SessionStore):
@@ -22,9 +22,7 @@ class SQLiteSessionStore(SessionStore):
         self,
         session_id: str,
         thread_id: str,
-        *,
-        workspace: Path,
-    ) -> ThreadState:
+    ) -> ThreadState | None:
         with self._connect() as conn:
             row = conn.execute(
                 "SELECT messages FROM threads WHERE session_id = ? AND thread_id = ?",
@@ -36,25 +34,15 @@ class SQLiteSessionStore(SessionStore):
                 return ThreadState(
                     session_id=session_id,
                     thread_id=thread_id,
-                    workspace=workspace,
                     messages=messages,
                 )
-
-            messages: list[ModelMessage] = []
-            self._upsert_thread(conn, session_id, thread_id, messages)
-            return ThreadState(
-                session_id=session_id,
-                thread_id=thread_id,
-                workspace=workspace,
-                messages=messages,
-            )
+        return None
 
     def save_thread(
         self,
         session_id: str,
         thread_id: str,
         *,
-        workspace: Path,
         messages: Sequence[ModelMessage],
     ) -> None:
         with self._connect() as conn:

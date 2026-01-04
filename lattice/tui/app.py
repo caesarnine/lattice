@@ -18,7 +18,7 @@ from textual.containers import Horizontal, VerticalScroll
 from textual.widgets import Input, Static
 
 from lattice.client import AgentClient
-from lattice.core.session import generate_thread_id
+from lattice.domain.sessions import generate_thread_id
 from lattice.tui.commands import CommandSuggester, ParsedCommand, build_help_text, parse_command
 from lattice.tui.rendering import ChatRenderer
 from lattice.tui.state import AgentSelectionState, ModelSelectionState

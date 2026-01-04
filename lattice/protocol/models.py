@@ -25,6 +25,7 @@ class ThreadClearResponse(BaseModel):
 class ThreadListResponse(BaseModel):
     threads: list[str]
 
+
 class ModelListResponse(BaseModel):
     default_model: str
     models: list[str]

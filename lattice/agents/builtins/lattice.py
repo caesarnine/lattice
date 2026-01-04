@@ -18,8 +18,8 @@ from lattice.agents.builtins.lattice_tools import (
     sync_global_tools,
 )
 from lattice.agents.plugin import AgentPlugin, AgentRunContext, list_known_models
-from lattice.core.scope import ensure_workspace
-from lattice.env import LATTICE_LOGFIRE, LATTICE_MODEL, read_bool_env, read_env
+from lattice.settings.env import LATTICE_LOGFIRE, LATTICE_MODEL, read_bool_env, read_env
+from lattice.settings.workspace import ensure_workspace
 
 
 class BashExecutionResult(BaseModel):

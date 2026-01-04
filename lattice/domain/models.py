@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from lattice.agents.plugin import AgentPlugin
-from lattice.env import AGENT_MODEL, LATTICE_MODEL, first_env
-from lattice.server.context import AppContext
+from lattice.domain.sessions import SessionStore
+from lattice.settings.env import AGENT_MODEL, LATTICE_MODEL, first_env
 
 
 @dataclass(frozen=True)
@@ -38,18 +38,18 @@ def resolve_default_model(plugin: AgentPlugin) -> str:
 
 
 def select_session_model(
-    ctx: AppContext,
+    store: SessionStore,
     *,
     session_id: str,
     plugin: AgentPlugin,
 ) -> ModelSelection:
     default_model = resolve_default_model(plugin)
-    selected = ctx.store.get_session_model(session_id) or default_model
+    selected = store.get_session_model(session_id) or default_model
     return ModelSelection(model=selected, default_model=default_model)
 
 
 def set_session_model(
-    ctx: AppContext,
+    store: SessionStore,
     *,
     session_id: str,
     plugin: AgentPlugin,
@@ -60,8 +60,8 @@ def set_session_model(
     if model:
         if plugin.validate_model:
             plugin.validate_model(model)
-        ctx.store.set_session_model(session_id, model)
+        store.set_session_model(session_id, model)
         return ModelSelection(model=model, default_model=default_model)
 
-    ctx.store.set_session_model(session_id, None)
+    store.set_session_model(session_id, None)
     return ModelSelection(model=default_model, default_model=default_model)

@@ -14,7 +14,7 @@ import httpx
 import uvicorn
 
 from lattice.client import AgentClient
-from lattice.env import (
+from lattice.settings.env import (
     AGENT_DEFAULT,
     AGENT_PLUGINS,
     LATTICE_PROJECT_ROOT,

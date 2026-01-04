@@ -8,18 +8,18 @@ from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 from pydantic_ai.ui.vercel_ai.request_types import RequestData
 
 from lattice.agents.plugin import AgentRunContext
-from lattice.config import load_or_create_session_id
-from lattice.core.messages import merge_messages
-from lattice.core.threads import ThreadNotFoundError, load_thread_messages
+from lattice.domain.messages import merge_messages
+from lattice.domain.threads import ThreadNotFoundError, load_thread_messages
 from lattice.server.context import AppContext
 from lattice.server.deps import get_ctx
-from lattice.server.services.agents import select_agent_for_thread
-from lattice.server.services.models import select_session_model
-from lattice.server.services.sessions import (
+from lattice.domain.agents import select_agent_for_thread
+from lattice.domain.models import select_session_model
+from lattice.server.ui_requests import (
     resolve_session_id_from_request,
     resolve_thread_id_from_request,
     select_message_history,
 )
+from lattice.settings.storage import load_or_create_session_id
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +31,14 @@ async def ui_chat(request: Request, ctx: AppContext = Depends(get_ctx)):
     run_input = await _read_run_input(request)
     session_id, thread_id = _resolve_session_and_thread(ctx, run_input)
 
-    agent_selection = select_agent_for_thread(ctx, session_id=session_id, thread_id=thread_id)
+    agent_selection = select_agent_for_thread(
+        ctx.store,
+        ctx.registry,
+        session_id=session_id,
+        thread_id=thread_id,
+    )
     plugin = agent_selection.plugin
-    model_selection = select_session_model(ctx, session_id=session_id, plugin=plugin)
+    model_selection = select_session_model(ctx.store, session_id=session_id, plugin=plugin)
     model_name = model_selection.model
     agent = _create_agent(plugin, model_name)
 
@@ -94,7 +99,7 @@ def _load_message_history(
     thread_id: str,
     run_input: RequestData,
 ):
-    messages = load_thread_messages(ctx.store, session_id=session_id, thread_id=thread_id, workspace=ctx.workspace)
+    messages = load_thread_messages(ctx.store, session_id=session_id, thread_id=thread_id)
     return select_message_history(run_input, messages)
 
 
@@ -132,7 +137,7 @@ def _build_on_complete(
     def on_complete(result) -> None:
         incoming_messages = adapter.messages
         merged = merge_messages(message_history, incoming_messages, result.new_messages())
-        ctx.store.save_thread(session_id, thread_id, workspace=ctx.workspace, messages=merged)
+        ctx.store.save_thread(session_id, thread_id, messages=merged)
         if plugin.on_complete:
             plugin.on_complete(run_ctx, result)
 

@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from pathlib import Path
 import uuid
+from dataclasses import dataclass
 from typing import Protocol, Sequence
 
 from pydantic import BaseModel, ConfigDict
@@ -14,7 +13,6 @@ from pydantic_ai.messages import ModelMessage
 class ThreadState:
     session_id: str
     thread_id: str
-    workspace: Path
     messages: list[ModelMessage]
 
 
@@ -30,16 +28,13 @@ class SessionStore(Protocol):
         self,
         session_id: str,
         thread_id: str,
-        *,
-        workspace: Path,
-    ) -> ThreadState: ...
+    ) -> ThreadState | None: ...
 
     def save_thread(
         self,
         session_id: str,
         thread_id: str,
         *,
-        workspace: Path,
         messages: Sequence[ModelMessage],
     ) -> None: ...
 

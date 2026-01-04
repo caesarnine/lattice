@@ -8,7 +8,8 @@ import tempfile
 from pathlib import Path
 from typing import Any, TypedDict
 
-from lattice.env import LATTICE_GLOBAL_BIN, read_env
+from lattice.settings.env import LATTICE_GLOBAL_BIN, read_env
+
 
 class _ToolCacheEntry(TypedDict, total=False):
     description: str

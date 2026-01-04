@@ -93,6 +93,12 @@ class AgentClient:
     async def close(self) -> None:
         await self._client.aclose()
 
+    async def __aenter__(self) -> "AgentClient":
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb) -> None:
+        await self.close()
+
     async def bootstrap_session(self, thread_id: str | None = None) -> SessionBootstrapResponse:
         params = {"thread_id": thread_id} if thread_id else None
         response = await self._client.get("/session/bootstrap", params=params)

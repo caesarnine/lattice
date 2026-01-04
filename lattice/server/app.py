@@ -5,8 +5,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from lattice.agents.registry import AgentRegistry, load_registry
-from lattice.config import StorageConfig, load_storage_config
-from lattice.persistence.sqlite_store import SQLiteSessionStore
+from lattice.settings.storage import StorageConfig, load_storage_config
+from lattice.storage.sqlite import SQLiteSessionStore
 from lattice.server.context import AppContext
 from lattice.server.routers import agents, meta, models, threads, ui
 from lattice.web import get_static_dir

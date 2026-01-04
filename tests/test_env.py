@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from lattice.env import first_env, read_bool_env, read_env
+from lattice.settings.env import first_env, read_bool_env, read_env
 
 
 def test_read_env_strips_and_ignores_blank(monkeypatch) -> None:

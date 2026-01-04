@@ -2,18 +2,18 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from lattice.config import resolve_storage_config
+from lattice.settings.storage import resolve_storage_config_from_env
 
 
 def get_default_workspace() -> Path:
     """Get the default workspace path."""
-    config = resolve_storage_config()
+    config = resolve_storage_config_from_env()
     return config.workspace_dir
 
 
 def get_default_project_root() -> Path:
     """Get the default project root."""
-    config = resolve_storage_config()
+    config = resolve_storage_config_from_env()
     return config.project_root
 
 

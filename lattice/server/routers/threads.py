@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic_ai.exceptions import UserError
-from lattice.core.session import generate_thread_id
-from lattice.core.threads import (
+from lattice.domain.sessions import generate_thread_id
+from lattice.domain.threads import (
     ThreadAlreadyExistsError,
     ThreadNotFoundError,
     clear_thread,
@@ -23,9 +23,9 @@ from lattice.protocol.models import (
 )
 from lattice.server.context import AppContext
 from lattice.server.deps import get_ctx
-from lattice.server.services.agents import select_agent_for_thread, set_thread_agent
-from lattice.server.services.models import set_session_model
-from lattice.server.services.state import build_thread_state
+from lattice.domain.agents import select_agent_for_thread, set_thread_agent
+from lattice.domain.models import set_session_model
+from lattice.server.state import build_thread_state
 
 router = APIRouter()
 
@@ -45,7 +45,7 @@ async def api_create_thread(
     if not thread_id:
         thread_id = generate_thread_id()
     try:
-        create_thread(ctx.store, session_id=session_id, thread_id=thread_id, workspace=ctx.workspace)
+        create_thread(ctx.store, session_id=session_id, thread_id=thread_id)
     except ThreadAlreadyExistsError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return ThreadCreateResponse(thread_id=thread_id)
@@ -74,7 +74,7 @@ async def api_clear_thread(
     ctx: AppContext = Depends(get_ctx),
 ) -> ThreadClearResponse:
     try:
-        clear_thread(ctx.store, session_id=session_id, thread_id=thread_id, workspace=ctx.workspace)
+        clear_thread(ctx.store, session_id=session_id, thread_id=thread_id)
     except ThreadNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return ThreadClearResponse(cleared=thread_id)
@@ -110,12 +110,13 @@ async def api_update_thread_state(
     except ThreadNotFoundError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
-    selection = select_agent_for_thread(ctx, session_id=session_id, thread_id=thread_id)
+    selection = select_agent_for_thread(ctx.store, ctx.registry, session_id=session_id, thread_id=thread_id)
 
     if "agent" in payload.model_fields_set:
         try:
             selection = set_thread_agent(
-                ctx,
+                ctx.store,
+                ctx.registry,
                 session_id=session_id,
                 thread_id=thread_id,
                 requested=payload.agent,
@@ -126,7 +127,7 @@ async def api_update_thread_state(
     if "model" in payload.model_fields_set:
         try:
             set_session_model(
-                ctx,
+                ctx.store,
                 session_id=session_id,
                 plugin=selection.plugin,
                 requested=payload.model,

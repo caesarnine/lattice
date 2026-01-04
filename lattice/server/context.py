@@ -4,8 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from lattice.agents.registry import AgentRegistry
-from lattice.config import StorageConfig
-from lattice.core.session import SessionStore
+from lattice.domain.sessions import SessionStore
+from lattice.settings.storage import StorageConfig
 
 
 @dataclass(frozen=True)

@@ -1,7 +1,9 @@
+"""Storage backends and helpers."""
+
 from functools import lru_cache
 
-from lattice.config import load_storage_config
-from lattice.persistence.sqlite_store import SQLiteSessionStore
+from lattice.settings.storage import load_storage_config
+from lattice.storage.sqlite import SQLiteSessionStore
 
 
 @lru_cache(maxsize=1)

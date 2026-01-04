@@ -90,7 +90,7 @@ export type ToolResult = {
   timedOut: boolean;
 };
 
-export function parseToolResult(content: string): ToolResult {
+export function parseToolResult(content: unknown): ToolResult {
   let data: unknown = content;
 
   if (typeof content === "string") {

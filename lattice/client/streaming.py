@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+import json
+from typing import Any
 
-from pydantic import TypeAdapter
-from ag_ui.core import Event
 
-
-async def iter_ag_ui_events(lines: AsyncIterator[str]) -> AsyncIterator[Event]:
-    adapter = TypeAdapter(Event)
+async def iter_ui_events(lines: AsyncIterator[str]) -> AsyncIterator[dict[str, Any]]:
     async for line in lines:
         if not line:
             continue
@@ -16,4 +14,9 @@ async def iter_ag_ui_events(lines: AsyncIterator[str]) -> AsyncIterator[Event]:
         payload = line[5:].lstrip()
         if not payload or payload == "[DONE]":
             continue
-        yield adapter.validate_json(payload)
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(data, dict):
+            yield data

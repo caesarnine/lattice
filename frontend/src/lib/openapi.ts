@@ -5,10 +5,6 @@
 
 
 export interface paths {
-  "/ag-ui": {
-    /** Ag Ui */
-    post: operations["ag_ui_ag_ui_post"];
-  };
   "/agents": {
     /** Api List Agents */
     get: operations["api_list_agents_agents_get"];
@@ -55,13 +51,13 @@ export interface paths {
     /** Api Clear Thread */
     post: operations["api_clear_thread_sessions__session_id__threads__thread_id__clear_post"];
   };
-  "/sessions/{session_id}/threads/{thread_id}/events": {
-    /** Api Thread Events */
-    get: operations["api_thread_events_sessions__session_id__threads__thread_id__events_get"];
-  };
   "/sessions/{session_id}/threads/{thread_id}/messages": {
     /** Api Thread Messages */
     get: operations["api_thread_messages_sessions__session_id__threads__thread_id__messages_get"];
+  };
+  "/ui/chat": {
+    /** Ui Chat */
+    post: operations["ui_chat_ui_chat_post"];
   };
 }
 
@@ -83,6 +79,162 @@ export interface components {
       /** Default Agent */
       default_agent: string;
     };
+    /**
+     * DataUIPart
+     * @description Data part with dynamic type based on data name.
+     */
+    DataUIPart: {
+      /** Data */
+      data: unknown;
+      /** Id */
+      id?: string | null;
+      /** Type */
+      type: string;
+    };
+    /**
+     * DynamicToolInputAvailablePart
+     * @description Dynamic tool part in input-available state.
+     */
+    DynamicToolInputAvailablePart: {
+      /** Callprovidermetadata */
+      callProviderMetadata?: {
+        [key: string]: {
+          [key: string]: unknown;
+        };
+      } | null;
+      /** Input */
+      input: unknown;
+      /**
+       * State
+       * @default input-available
+       * @constant
+       */
+      state?: "input-available";
+      /** Toolcallid */
+      toolCallId: string;
+      /** Toolname */
+      toolName: string;
+      /**
+       * Type
+       * @default dynamic-tool
+       * @constant
+       */
+      type?: "dynamic-tool";
+    };
+    /**
+     * DynamicToolInputStreamingPart
+     * @description Dynamic tool part in input-streaming state.
+     */
+    DynamicToolInputStreamingPart: {
+      /** Input */
+      input?: unknown;
+      /**
+       * State
+       * @default input-streaming
+       * @constant
+       */
+      state?: "input-streaming";
+      /** Toolcallid */
+      toolCallId: string;
+      /** Toolname */
+      toolName: string;
+      /**
+       * Type
+       * @default dynamic-tool
+       * @constant
+       */
+      type?: "dynamic-tool";
+    };
+    /**
+     * DynamicToolOutputAvailablePart
+     * @description Dynamic tool part in output-available state.
+     */
+    DynamicToolOutputAvailablePart: {
+      /** Callprovidermetadata */
+      callProviderMetadata?: {
+        [key: string]: {
+          [key: string]: unknown;
+        };
+      } | null;
+      /** Input */
+      input: unknown;
+      /** Output */
+      output: unknown;
+      /** Preliminary */
+      preliminary?: boolean | null;
+      /**
+       * State
+       * @default output-available
+       * @constant
+       */
+      state?: "output-available";
+      /** Toolcallid */
+      toolCallId: string;
+      /** Toolname */
+      toolName: string;
+      /**
+       * Type
+       * @default dynamic-tool
+       * @constant
+       */
+      type?: "dynamic-tool";
+    };
+    /**
+     * DynamicToolOutputErrorPart
+     * @description Dynamic tool part in output-error state.
+     */
+    DynamicToolOutputErrorPart: {
+      /** Callprovidermetadata */
+      callProviderMetadata?: {
+        [key: string]: {
+          [key: string]: unknown;
+        };
+      } | null;
+      /** Errortext */
+      errorText: string;
+      /** Input */
+      input: unknown;
+      /**
+       * State
+       * @default output-error
+       * @constant
+       */
+      state?: "output-error";
+      /** Toolcallid */
+      toolCallId: string;
+      /** Toolname */
+      toolName: string;
+      /**
+       * Type
+       * @default dynamic-tool
+       * @constant
+       */
+      type?: "dynamic-tool";
+    };
+    /**
+     * FileUIPart
+     * @description A file part of a message.
+     */
+    FileUIPart: {
+      /** Filename */
+      filename?: string | null;
+      /** Mediatype */
+      mediaType: string;
+      /** Providermetadata */
+      providerMetadata?: {
+        [key: string]: {
+          [key: string]: unknown;
+        };
+      } | null;
+      /**
+       * Type
+       * @default file
+       * @constant
+       */
+      type?: "file";
+      /** Url */
+      url: string;
+    };
     /** HTTPValidationError */
     HTTPValidationError: {
       /** Detail */
@@ -94,6 +246,28 @@ export interface components {
       default_model: string;
       /** Models */
       models: string[];
+    };
+    /**
+     * ReasoningUIPart
+     * @description A reasoning part of a message.
+     */
+    ReasoningUIPart: {
+      /** Providermetadata */
+      providerMetadata?: {
+        [key: string]: {
+          [key: string]: unknown;
+        };
+      } | null;
+      /** State */
+      state?: ("streaming" | "done") | null;
+      /** Text */
+      text: string;
+      /**
+       * Type
+       * @default reasoning
+       * @constant
+       */
+      type?: "reasoning";
     };
     /** ServerInfoResponse */
     ServerInfoResponse: {
@@ -128,6 +302,90 @@ export interface components {
       is_default: boolean;
       /** Model */
       model: string;
+    };
+    /**
+     * SourceDocumentUIPart
+     * @description A document source part of a message.
+     */
+    SourceDocumentUIPart: {
+      /** Filename */
+      filename?: string | null;
+      /** Mediatype */
+      mediaType: string;
+      /** Providermetadata */
+      providerMetadata?: {
+        [key: string]: {
+          [key: string]: unknown;
+        };
+      } | null;
+      /** Sourceid */
+      sourceId: string;
+      /** Title */
+      title: string;
+      /**
+       * Type
+       * @default source-document
+       * @constant
+       */
+      type?: "source-document";
+    };
+    /**
+     * SourceUrlUIPart
+     * @description A source part of a message.
+     */
+    SourceUrlUIPart: {
+      /** Providermetadata */
+      providerMetadata?: {
+        [key: string]: {
+          [key: string]: unknown;
+        };
+      } | null;
+      /** Sourceid */
+      sourceId: string;
+      /** Title */
+      title?: string | null;
+      /**
+       * Type
+       * @default source-url
+       * @constant
+       */
+      type?: "source-url";
+      /** Url */
+      url: string;
+    };
+    /**
+     * StepStartUIPart
+     * @description A step boundary part of a message.
+     */
+    StepStartUIPart: {
+      /**
+       * Type
+       * @default step-start
+       * @constant
+       */
+      type?: "step-start";
+    };
+    /**
+     * TextUIPart
+     * @description A text part of a message.
+     */
+    TextUIPart: {
+      /** Providermetadata */
+      providerMetadata?: {
+        [key: string]: {
+          [key: string]: unknown;
+        };
+      } | null;
+      /** State */
+      state?: ("streaming" | "done") | null;
+      /** Text */
+      text: string;
+      /**
+       * Type
+       * @default text
+       * @constant
+       */
+      type?: "text";
     };
     /** ThreadAgentRequest */
     ThreadAgentRequest: {
@@ -173,17 +431,130 @@ export interface components {
     /** ThreadMessagesResponse */
     ThreadMessagesResponse: {
       /** Messages */
-      messages: components["schemas"]["TranscriptMessage"][];
+      messages: components["schemas"]["UIMessage"][];
     };
-    /** TranscriptMessage */
-    TranscriptMessage: {
-      /** Content */
-      content: string;
+    /**
+     * ToolInputAvailablePart
+     * @description Tool part in input-available state.
+     */
+    ToolInputAvailablePart: {
+      /** Callprovidermetadata */
+      callProviderMetadata?: {
+        [key: string]: {
+          [key: string]: unknown;
+        };
+      } | null;
+      /** Input */
+      input?: unknown;
+      /** Providerexecuted */
+      providerExecuted?: boolean | null;
+      /**
+       * State
+       * @default input-available
+       * @constant
+       */
+      state?: "input-available";
+      /** Toolcallid */
+      toolCallId: string;
+      /** Type */
+      type: string;
+    };
+    /**
+     * ToolInputStreamingPart
+     * @description Tool part in input-streaming state.
+     */
+    ToolInputStreamingPart: {
+      /** Input */
+      input?: unknown;
+      /** Providerexecuted */
+      providerExecuted?: boolean | null;
+      /**
+       * State
+       * @default input-streaming
+       * @constant
+       */
+      state?: "input-streaming";
+      /** Toolcallid */
+      toolCallId: string;
+      /** Type */
+      type: string;
+    };
+    /**
+     * ToolOutputAvailablePart
+     * @description Tool part in output-available state.
+     */
+    ToolOutputAvailablePart: {
+      /** Callprovidermetadata */
+      callProviderMetadata?: {
+        [key: string]: {
+          [key: string]: unknown;
+        };
+      } | null;
+      /** Input */
+      input?: unknown;
+      /** Output */
+      output?: unknown;
+      /** Preliminary */
+      preliminary?: boolean | null;
+      /** Providerexecuted */
+      providerExecuted?: boolean | null;
+      /**
+       * State
+       * @default output-available
+       * @constant
+       */
+      state?: "output-available";
+      /** Toolcallid */
+      toolCallId: string;
+      /** Type */
+      type: string;
+    };
+    /**
+     * ToolOutputErrorPart
+     * @description Tool part in output-error state.
+     */
+    ToolOutputErrorPart: {
+      /** Callprovidermetadata */
+      callProviderMetadata?: {
+        [key: string]: {
+          [key: string]: unknown;
+        };
+      } | null;
+      /** Errortext */
+      errorText: string;
+      /** Input */
+      input?: unknown;
+      /** Providerexecuted */
+      providerExecuted?: boolean | null;
+      /** Rawinput */
+      rawInput?: unknown;
+      /**
+       * State
+       * @default output-error
+       * @constant
+       */
+      state?: "output-error";
+      /** Toolcallid */
+      toolCallId: string;
+      /** Type */
+      type: string;
+    };
+    /**
+     * UIMessage
+     * @description A message as displayed in the UI by Vercel AI Elements.
+     */
+    UIMessage: {
+      /** Id */
+      id: string;
+      /** Metadata */
+      metadata?: unknown;
+      /** Parts */
+      parts: (components["schemas"]["TextUIPart"] | components["schemas"]["ReasoningUIPart"] | components["schemas"]["ToolInputStreamingPart"] | components["schemas"]["ToolInputAvailablePart"] | components["schemas"]["ToolOutputAvailablePart"] | components["schemas"]["ToolOutputErrorPart"] | components["schemas"]["DynamicToolInputStreamingPart"] | components["schemas"]["DynamicToolInputAvailablePart"] | components["schemas"]["DynamicToolOutputAvailablePart"] | components["schemas"]["DynamicToolOutputErrorPart"] | components["schemas"]["SourceUrlUIPart"] | components["schemas"]["SourceDocumentUIPart"] | components["schemas"]["FileUIPart"] | components["schemas"]["DataUIPart"] | components["schemas"]["StepStartUIPart"])[];
       /**
        * Role
        * @enum {string}
        */
-      role: "user" | "assistant" | "system" | "tool";
+      role: "system" | "user" | "assistant";
     };
     /** ValidationError */
     ValidationError: {
@@ -208,17 +579,6 @@ export type external = Record<string, never>;
 
 export interface operations {
 
-  /** Ag Ui */
-  ag_ui_ag_ui_post: {
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": unknown;
-        };
-      };
-    };
-  };
   /** Api List Agents */
   api_list_agents_agents_get: {
     responses: {
@@ -473,29 +833,6 @@ export interface operations {
       };
     };
   };
-  /** Api Thread Events */
-  api_thread_events_sessions__session_id__threads__thread_id__events_get: {
-    parameters: {
-      path: {
-        session_id: string;
-        thread_id: string;
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": unknown;
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
   /** Api Thread Messages */
   api_thread_messages_sessions__session_id__threads__thread_id__messages_get: {
     parameters: {
@@ -515,6 +852,17 @@ export interface operations {
       422: {
         content: {
           "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Ui Chat */
+  ui_chat_ui_chat_post: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
         };
       };
     };

@@ -1,13 +1,10 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
-from ag_ui.encoder import EventEncoder
+from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 
 from lattice.core.session import generate_thread_id
 from lattice.core.threads import create_thread, delete_thread, list_threads, load_thread_messages
-from lattice.core.transcript import build_transcript
-from lattice.core.history_events import iter_history_events
 from lattice.protocol.models import (
     ThreadClearResponse,
     ThreadCreateRequest,
@@ -80,21 +77,5 @@ async def api_thread_messages(
     ctx: AppContext = Depends(get_ctx),
 ) -> ThreadMessagesResponse:
     messages = load_thread_messages(ctx.store, session_id=session_id, thread_id=thread_id, workspace=ctx.workspace)
-    transcript = build_transcript(messages)
-    return ThreadMessagesResponse(messages=transcript)
-
-
-@router.get("/sessions/{session_id}/threads/{thread_id}/events")
-async def api_thread_events(
-    session_id: str,
-    thread_id: str,
-    ctx: AppContext = Depends(get_ctx),
-):
-    messages = load_thread_messages(ctx.store, session_id=session_id, thread_id=thread_id, workspace=ctx.workspace)
-    encoder = EventEncoder()
-
-    def stream():
-        for event in iter_history_events(messages):
-            yield encoder.encode(event)
-
-    return StreamingResponse(stream(), media_type=encoder.get_content_type())
+    ui_messages = VercelAIAdapter.dump_messages(messages)
+    return ThreadMessagesResponse(messages=ui_messages)

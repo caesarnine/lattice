@@ -5,7 +5,6 @@ from lattice.protocol.models import (
     ThreadDeleteResponse,
     ThreadListResponse,
     ThreadMessagesResponse,
-    TranscriptMessage,
 )
 
 __all__ = [
@@ -15,5 +14,4 @@ __all__ = [
     "ThreadClearResponse",
     "ThreadListResponse",
     "ThreadMessagesResponse",
-    "TranscriptMessage",
 ]

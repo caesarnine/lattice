@@ -4,7 +4,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic_ai.exceptions import UserError
-from pydantic_ai.ui.ag_ui import AGUIAdapter
+from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 
 from lattice.agents.plugin import AgentRunContext
 from lattice.config import load_or_create_session_id
@@ -12,21 +12,27 @@ from lattice.core.messages import merge_messages
 from lattice.server.context import AppContext
 from lattice.server.deps import get_ctx
 from lattice.server.runtime import resolve_agent_plugin, resolve_default_model
-from lattice.server.services.sessions import resolve_session_id_from_run_input, select_message_history
+from lattice.server.services.sessions import (
+    resolve_session_id_from_request,
+    resolve_thread_id_from_request,
+    select_message_history,
+)
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
 
-@router.post("/ag-ui")
-async def ag_ui(request: Request, ctx: AppContext = Depends(get_ctx)):
+@router.post("/ui/chat")
+async def ui_chat(request: Request, ctx: AppContext = Depends(get_ctx)):
     body = await request.body()
-    run_input = AGUIAdapter.build_run_input(body)
+    run_input = VercelAIAdapter.build_run_input(body)
     default_session_id = load_or_create_session_id(ctx.config.session_id_path)
-    session_id = resolve_session_id_from_run_input(run_input, default_session_id=default_session_id)
+    session_id = resolve_session_id_from_request(run_input, default_session_id=default_session_id)
+    thread_id = resolve_thread_id_from_request(run_input)
+    if not thread_id:
+        raise HTTPException(status_code=400, detail="Missing thread id.")
 
-    thread_id = run_input.thread_id
     agent_id, plugin = resolve_agent_plugin(ctx, session_id=session_id, thread_id=thread_id)
     model_name = ctx.store.get_session_model(session_id) or resolve_default_model(plugin)
     try:
@@ -34,14 +40,14 @@ async def ag_ui(request: Request, ctx: AppContext = Depends(get_ctx)):
     except UserError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    adapter = AGUIAdapter(agent=agent, run_input=run_input, accept=request.headers.get("accept"))
+    adapter = VercelAIAdapter(agent=agent, run_input=run_input, accept=request.headers.get("accept"))
     thread_state = ctx.store.load_thread(session_id, thread_id, workspace=ctx.workspace)
-    message_history = select_message_history(adapter, thread_state.messages)
+    message_history = select_message_history(run_input, thread_state.messages)
     if logger.isEnabledFor(logging.DEBUG):
-        incoming_roles = [getattr(msg, "role", None) for msg in adapter.run_input.messages]
+        incoming_roles = [msg.role for msg in run_input.messages]
         history_roles = [getattr(msg, "role", None) for msg in message_history]
         logger.debug(
-            "ag_ui session=%s thread=%s agent=%s incoming=%s history=%s",
+            "ui_chat session=%s thread=%s agent=%s incoming=%s history=%s",
             session_id,
             thread_id,
             agent_id,
@@ -55,7 +61,7 @@ async def ag_ui(request: Request, ctx: AppContext = Depends(get_ctx)):
         model=model_name,
         workspace=ctx.workspace,
         project_root=ctx.project_root,
-        run_input=adapter.run_input,
+        run_input=run_input,
     )
     deps = plugin.create_deps(run_ctx) if plugin.create_deps else None
 

@@ -8,7 +8,7 @@ from lattice.agents.registry import AgentRegistry, load_registry
 from lattice.config import StorageConfig, load_storage_config
 from lattice.persistence.sqlite_store import SQLiteSessionStore
 from lattice.server.context import AppContext
-from lattice.server.routers import agui, agents, meta, models, threads
+from lattice.server.routers import agents, meta, models, threads, ui
 from lattice.web import get_static_dir
 
 
@@ -43,7 +43,7 @@ def create_app(
     app.include_router(agents.router)
     app.include_router(models.router)
     app.include_router(threads.router)
-    app.include_router(agui.router)
+    app.include_router(ui.router)
 
     # Mount static files for web UI (must be last to act as SPA catch-all)
     static_dir = get_static_dir()

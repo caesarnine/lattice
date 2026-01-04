@@ -3,9 +3,9 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 
 import httpx
-from ag_ui.core import Event, RunAgentInput
+from pydantic_ai.ui.vercel_ai.request_types import RequestData
 
-from lattice.client.streaming import iter_ag_ui_events
+from lattice.client.streaming import iter_ui_events
 from lattice.protocol.models import (
     AgentListResponse,
     ModelListResponse,
@@ -169,21 +169,10 @@ class AgentClient:
         self._raise_for_status(response, "Failed to load messages")
         return ThreadMessagesResponse.model_validate(response.json())
 
-    async def iter_thread_events(self, session_id: str, thread_id: str) -> AsyncIterator[Event]:
-        headers = {"accept": "text/event-stream"}
-        async with self._client.stream(
-            "GET",
-            f"/sessions/{session_id}/threads/{thread_id}/events",
-            headers=headers,
-        ) as response:
-            await self._raise_for_status_async(response, "Failed to load thread events")
-            async for event in iter_ag_ui_events(response.aiter_lines()):
-                yield event
-
-    async def run_stream(self, run_input: RunAgentInput) -> AsyncIterator[Event]:
+    async def run_stream(self, run_input: RequestData) -> AsyncIterator[dict]:
         payload = run_input.model_dump(mode="json", by_alias=True, exclude_none=True)
         headers = {"accept": "text/event-stream"}
-        async with self._client.stream("POST", "/ag-ui", json=payload, headers=headers) as response:
+        async with self._client.stream("POST", "/ui/chat", json=payload, headers=headers) as response:
             await self._raise_for_status_async(response, "Failed to run agent")
-            async for event in iter_ag_ui_events(response.aiter_lines()):
+            async for event in iter_ui_events(response.aiter_lines()):
                 yield event

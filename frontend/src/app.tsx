@@ -19,17 +19,59 @@ import {
   listAgents,
   listModels,
   listThreads,
-  runAgentStream,
+  getThreadMessages,
+  runChatStream,
   setThreadAgent,
   setSessionModel,
-  streamThreadEvents,
   type AgentInfo
 } from "@/lib/api";
-import { type AgUiEvent } from "@/lib/agui";
+import { type UiMessage, type UiMessagePart, type UiStreamEvent } from "@/lib/vercel";
 import { appendToolArgs, parseToolResult } from "@/lib/format";
 import { createId } from "@/lib/ids";
 
 const EMPTY_MESSAGE = "";
+
+type UiToolPart = Extract<
+  UiMessagePart,
+  { toolCallId: string; state: string; type: string }
+>;
+
+function isUiToolPart(part: UiMessagePart): part is UiToolPart {
+  return (
+    typeof (part as { toolCallId?: unknown }).toolCallId === "string" &&
+    typeof (part as { state?: unknown }).state === "string"
+  );
+}
+
+function stringifyToolInput(input: unknown): string {
+  if (typeof input === "string") return input;
+  if (input == null) return "";
+  try {
+    return JSON.stringify(input);
+  } catch {
+    return String(input);
+  }
+}
+
+function describeFilePart(part: UiMessagePart): string | null {
+  if (part.type !== "file") return null;
+  const filePart = part as Extract<UiMessagePart, { type: "file" }>;
+  const label = filePart.filename ?? filePart.mediaType ?? "file";
+  return `[${label}]`;
+}
+
+function extractToolName(part: UiToolPart): string {
+  if (part.type === "dynamic-tool") {
+    return (
+      (part as { toolName?: unknown }).toolName?.toString() ??
+      "tool"
+    );
+  }
+  if (part.type.startsWith("tool-")) {
+    return part.type.slice("tool-".length) || "tool";
+  }
+  return "tool";
+}
 
 type MessageItem = {
   kind: "message";
@@ -47,12 +89,6 @@ type ToolItem = {
 };
 
 type RenderItem = MessageItem | ToolItem;
-
-function normalizeRole(role?: string): ChatRole {
-  if (!role) return "assistant";
-  if (role === "developer" || role === "system") return "system";
-  return role;
-}
 
 export default function App() {
   const [sessionId, setSessionId] = React.useState<string | null>(null);
@@ -78,8 +114,6 @@ export default function App() {
 
   const messageMap = React.useRef(new Map<string, number>());
   const toolMap = React.useRef(new Map<string, number>());
-  const currentAssistantId = React.useRef<string | null>(null);
-  const currentThinkingId = React.useRef<string | null>(null);
   const runAbort = React.useRef<AbortController | null>(null);
   const scrollRef = React.useRef<HTMLDivElement | null>(null);
   const modelLabel = model ?? defaultModel ?? "";
@@ -88,8 +122,6 @@ export default function App() {
   const resetMaps = React.useCallback(() => {
     messageMap.current = new Map();
     toolMap.current = new Map();
-    currentAssistantId.current = null;
-    currentThinkingId.current = null;
   }, []);
 
   const resetThreadState = React.useCallback(() => {
@@ -119,7 +151,6 @@ export default function App() {
         };
         const next = [...prev, fallbackMessage];
         messageMap.current.set(messageId, next.length - 1);
-        currentAssistantId.current = messageId;
         return next;
       }
 
@@ -134,16 +165,6 @@ export default function App() {
     });
   }, []);
 
-  const ensureThinkingMessage = React.useCallback(() => {
-    const existing = currentThinkingId.current;
-    if (existing && messageMap.current.has(existing)) {
-      return existing;
-    }
-    const newId = createId("thinking");
-    addMessageItem({ kind: "message", id: newId, role: "thinking", content: "" });
-    currentThinkingId.current = newId;
-    return newId;
-  }, [addMessageItem]);
 
   const addToolItem = React.useCallback((tool: ToolItem) => {
     setItems((prev) => {
@@ -190,111 +211,132 @@ export default function App() {
     [addToolItem, updateToolItem]
   );
 
-  const handleEvent = React.useCallback(
-    (event: AgUiEvent) => {
+  const setToolArgs = React.useCallback(
+    (toolCallId: string, input: unknown) => {
+      if (!toolCallId) return;
+      ensureToolItem(toolCallId);
+      updateToolItem(toolCallId, (item) => ({
+        ...item,
+        argsRaw: stringifyToolInput(input)
+      }));
+    },
+    [ensureToolItem, updateToolItem]
+  );
+
+  const handleStreamEvent = React.useCallback(
+    (event: UiStreamEvent) => {
       switch (event.type) {
-        case "TEXT_MESSAGE_START": {
-          const messageId = String(event.messageId ?? "");
+        case "text-start": {
+          const messageId = typeof event.id === "string" ? event.id : "";
           if (!messageId) return;
-          const role = normalizeRole(event.role as string | undefined);
-          if (role === "assistant") {
-            currentAssistantId.current = messageId;
-          }
           addMessageItem({
             kind: "message",
             id: messageId,
-            role,
+            role: "assistant",
             content: EMPTY_MESSAGE
           });
           return;
         }
-        case "TEXT_MESSAGE_CONTENT": {
-          const messageId = String(event.messageId ?? "");
-          const delta = String(event.delta ?? "");
+        case "text-delta": {
+          const messageId = typeof event.id === "string" ? event.id : "";
+          const delta = typeof event.delta === "string" ? event.delta : "";
           if (!messageId) return;
           updateMessageContent(messageId, delta);
           return;
         }
-        case "TEXT_MESSAGE_END":
+        case "text-end":
           return;
-        case "TEXT_MESSAGE_CHUNK": {
-          const messageId = event.messageId
-            ? String(event.messageId)
-            : createId("chunk");
-          const role = normalizeRole(event.role as string | undefined);
+        case "reasoning-start": {
+          const messageId = typeof event.id === "string" ? event.id : "";
+          if (!messageId) return;
           if (!messageMap.current.has(messageId)) {
             addMessageItem({
               kind: "message",
               id: messageId,
-              role,
+              role: "thinking",
               content: EMPTY_MESSAGE
             });
           }
-          if (role === "assistant") {
-            currentAssistantId.current = messageId;
-          }
-          if (event.delta) {
-            updateMessageContent(messageId, String(event.delta));
-          }
           return;
         }
-        case "THINKING_START":
-        case "THINKING_TEXT_MESSAGE_START": {
-          ensureThinkingMessage();
+        case "reasoning-delta": {
+          const messageId = typeof event.id === "string" ? event.id : "";
+          const delta = typeof event.delta === "string" ? event.delta : "";
+          if (!messageId) return;
+          updateMessageContent(messageId, delta);
           return;
         }
-        case "THINKING_TEXT_MESSAGE_CONTENT": {
-          const thinkingId = ensureThinkingMessage();
-          updateMessageContent(thinkingId, String(event.delta ?? ""));
+        case "reasoning-end":
           return;
-        }
-        case "THINKING_TEXT_MESSAGE_END":
-        case "THINKING_END":
-          return;
-        case "TOOL_CALL_START": {
-          const toolCallId = String(event.toolCallId ?? "");
+        case "tool-input-start": {
+          const toolCallId = typeof event.toolCallId === "string" ? event.toolCallId : "";
           if (!toolCallId) return;
-          ensureToolItem(toolCallId, String(event.toolCallName ?? "tool"));
+          const toolName =
+            typeof event.toolName === "string" && event.toolName
+              ? event.toolName
+              : "tool";
+          ensureToolItem(toolCallId, toolName);
           return;
         }
-        case "TOOL_CALL_ARGS": {
-          const toolCallId = String(event.toolCallId ?? "");
+        case "tool-input-delta": {
+          const toolCallId = typeof event.toolCallId === "string" ? event.toolCallId : "";
+          const delta =
+            typeof event.inputTextDelta === "string" ? event.inputTextDelta : "";
           if (!toolCallId) return;
           ensureToolItem(toolCallId);
-          updateToolItem(toolCallId, (item) => ({
-            ...item,
-            argsRaw: appendToolArgs(item.argsRaw, String(event.delta ?? ""))
-          }));
-          return;
-        }
-        case "TOOL_CALL_RESULT": {
-          const toolCallId = String(event.toolCallId ?? "");
-          if (!toolCallId) return;
-          ensureToolItem(toolCallId);
-          updateToolItem(toolCallId, (item) => ({
-            ...item,
-            result: parseToolResult(String(event.content ?? ""))
-          }));
-          return;
-        }
-        case "TOOL_CALL_CHUNK": {
-          const toolCallId = event.toolCallId ? String(event.toolCallId) : "";
-          if (!toolCallId) return;
-          ensureToolItem(toolCallId, event.toolCallName ? String(event.toolCallName) : undefined);
-          if (event.delta) {
+          if (delta) {
             updateToolItem(toolCallId, (item) => ({
               ...item,
-              argsRaw: appendToolArgs(item.argsRaw, String(event.delta))
+              argsRaw: appendToolArgs(item.argsRaw, delta)
             }));
           }
           return;
         }
-        case "RUN_ERROR": {
+        case "tool-input-available": {
+          const toolCallId = typeof event.toolCallId === "string" ? event.toolCallId : "";
+          if (!toolCallId) return;
+          const toolName =
+            typeof event.toolName === "string" && event.toolName
+              ? event.toolName
+              : "tool";
+          ensureToolItem(toolCallId, toolName);
+          setToolArgs(toolCallId, event.input);
+          return;
+        }
+        case "tool-output-available": {
+          const toolCallId = typeof event.toolCallId === "string" ? event.toolCallId : "";
+          if (!toolCallId) return;
+          ensureToolItem(toolCallId);
+          updateToolItem(toolCallId, (item) => ({
+            ...item,
+            result: parseToolResult(event.output)
+          }));
+          return;
+        }
+        case "tool-output-error": {
+          const toolCallId = typeof event.toolCallId === "string" ? event.toolCallId : "";
+          if (!toolCallId) return;
+          ensureToolItem(toolCallId);
+          const errorText =
+            typeof event.errorText === "string" && event.errorText
+              ? event.errorText
+              : "Tool error";
+          updateToolItem(toolCallId, (item) => ({
+            ...item,
+            result: parseToolResult({ stderr: errorText, exit_code: 1 })
+          }));
+          return;
+        }
+        case "error": {
+          const errorText =
+            typeof event.errorText === "string" && event.errorText
+              ? event.errorText
+              : "Unknown error";
           addMessageItem({
             kind: "message",
             id: createId("error"),
             role: "system",
-            content: `Run error: ${event.message ?? "Unknown error"}`
+            content: `Run error: ${errorText}`
           });
           return;
         }
@@ -304,11 +346,136 @@ export default function App() {
     },
     [
       addMessageItem,
-      ensureThinkingMessage,
       ensureToolItem,
+      setToolArgs,
       updateMessageContent,
       updateToolItem
     ]
+  );
+
+  const hydrateUiMessages = React.useCallback(
+    (messages: UiMessage[]) => {
+      resetThreadState();
+
+      const collectText = (parts: UiMessagePart[]) => {
+        const chunks: string[] = [];
+        for (const part of parts) {
+          if (part.type === "text" && typeof part.text === "string") {
+            chunks.push(part.text);
+            continue;
+          }
+          const fileLabel = describeFilePart(part);
+          if (fileLabel) {
+            chunks.push(fileLabel);
+          }
+        }
+        return chunks.join("\n").trim();
+      };
+
+      for (const message of messages) {
+        if (message.role === "system") {
+          const content = collectText(message.parts);
+          if (content) {
+            addMessageItem({
+              kind: "message",
+              id: message.id || createId("system"),
+              role: "system",
+              content
+            });
+          }
+          continue;
+        }
+
+        if (message.role === "user") {
+          const content = collectText(message.parts);
+          if (content) {
+            addMessageItem({
+              kind: "message",
+              id: message.id || createId("user"),
+              role: "user",
+              content
+            });
+          }
+          continue;
+        }
+
+        if (message.role !== "assistant") {
+          continue;
+        }
+
+        let buffer = "";
+        let usedMessageId = false;
+
+        const flushBuffer = () => {
+          if (!buffer.trim()) {
+            buffer = "";
+            return;
+          }
+          addMessageItem({
+            kind: "message",
+            id: !usedMessageId && message.id ? message.id : createId("assistant"),
+            role: "assistant",
+            content: buffer
+          });
+          usedMessageId = true;
+          buffer = "";
+        };
+
+        for (const part of message.parts) {
+          if (part.type === "text" && typeof part.text === "string") {
+            buffer += part.text;
+            continue;
+          }
+
+          const fileLabel = describeFilePart(part);
+          if (fileLabel) {
+            buffer += fileLabel;
+            continue;
+          }
+
+          if (part.type === "reasoning" && typeof part.text === "string") {
+            flushBuffer();
+            if (part.text.trim()) {
+              addMessageItem({
+                kind: "message",
+                id: createId("thinking"),
+                role: "thinking",
+                content: part.text
+              });
+            }
+            continue;
+          }
+
+          if (isUiToolPart(part)) {
+            flushBuffer();
+            const toolName = extractToolName(part);
+            ensureToolItem(part.toolCallId, toolName);
+            if (part.input !== undefined) {
+              setToolArgs(part.toolCallId, part.input);
+            }
+            if (part.state === "output-available") {
+              updateToolItem(part.toolCallId, (item) => ({
+                ...item,
+                result: parseToolResult(part.output)
+              }));
+            }
+            if (part.state === "output-error") {
+              const errorText =
+                typeof part.errorText === "string" && part.errorText
+                  ? part.errorText
+                  : "Tool error";
+              updateToolItem(part.toolCallId, (item) => ({
+                ...item,
+                result: parseToolResult({ stderr: errorText, exit_code: 1 })
+              }));
+            }
+          }
+        }
+
+        flushBuffer();
+      }
+    },
+    [addMessageItem, ensureToolItem, resetThreadState, setToolArgs, updateToolItem]
   );
 
   const scrollToBottom = React.useCallback(() => {
@@ -347,13 +514,10 @@ export default function App() {
 
   const loadThreadHistory = React.useCallback(
     async (session: string, threadId: string) => {
-      resetThreadState();
       setIsLoadingHistory(true);
       try {
-        const stream = await streamThreadEvents(session, threadId);
-        for await (const event of stream) {
-          handleEvent(event);
-        }
+        const messages = await getThreadMessages(session, threadId);
+        hydrateUiMessages(messages);
       } catch (error) {
         addMessageItem({
           kind: "message",
@@ -367,7 +531,7 @@ export default function App() {
         setIsLoadingHistory(false);
       }
     },
-    [addMessageItem, handleEvent, resetThreadState]
+    [addMessageItem, hydrateUiMessages]
   );
 
   const loadThreadAgent = React.useCallback(async (session: string, threadId: string) => {
@@ -553,28 +717,28 @@ export default function App() {
     runAbort.current = controller;
 
     const payload = {
-      threadId: currentThread,
-      runId: createId(),
-      parentRunId: null,
-      state: {},
+      trigger: "submit-message",
+      id: createId("run"),
       messages: [
         {
-          id: createId(),
+          id: createId("msg"),
           role: "user",
-          content: trimmed
+          parts: [
+            {
+              type: "text",
+              text: trimmed
+            }
+          ]
         }
       ],
-      tools: [],
-      context: [],
-      forwardedProps: {
-        sessionId
-      }
+      session_id: sessionId,
+      thread_id: currentThread
     };
 
     try {
-      const stream = await runAgentStream(payload, controller.signal);
+      const stream = await runChatStream(payload, controller.signal);
       for await (const event of stream) {
-        handleEvent(event);
+        handleStreamEvent(event);
       }
     } catch (error) {
       handleStop();

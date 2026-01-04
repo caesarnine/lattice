@@ -1,7 +1,7 @@
 Lattice Web UI
 ===============
 
-The web UI is a React app that talks to the Lattice server over the AG-UI API.
+The web UI is a React app that talks to the Lattice server over the Vercel AI UI stream.
 It shares sessions/threads with the TUI, so you can switch between clients.
 
 ---
@@ -35,6 +35,7 @@ VITE_LATTICE_SERVER_URL=http://your-server:8000
 - The sidebar includes an **Agent** selector and a **Model** selector (lazy-loaded + searchable).
 - The header shows the active model and streaming status.
 - Threads and history are shared with the TUI.
+- Streaming uses `POST /ui/chat` (Vercel AI data stream protocol), history loads from `GET /sessions/{session_id}/threads/{thread_id}/messages`.
 
 ## OpenAPI Types
 

@@ -8,9 +8,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable, Sequence, get_args
 
-from ag_ui.core import RunAgentInput
 from pydantic_ai import Agent
 from pydantic_ai.models import KnownModelName, infer_model
+from pydantic_ai.ui.vercel_ai.request_types import RequestData
 
 AGENT_PLUGIN_ENV = "AGENT_PLUGIN"
 DEFAULT_PLUGIN_SPEC = "lattice.agents.builtins.lattice:plugin"
@@ -23,7 +23,7 @@ class AgentRunContext:
     model: str
     workspace: Path
     project_root: Path
-    run_input: RunAgentInput
+    run_input: RequestData
 
 
 CreateAgentFn = Callable[[str], Agent[Any, Any]]

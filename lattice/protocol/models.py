@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Literal
 
 from pydantic import BaseModel
+from pydantic_ai.ui.vercel_ai.request_types import UIMessage
 
 
 class ThreadCreateRequest(BaseModel):
@@ -25,13 +26,8 @@ class ThreadListResponse(BaseModel):
     threads: list[str]
 
 
-class TranscriptMessage(BaseModel):
-    role: Literal["user", "assistant", "system", "tool"]
-    content: str
-
-
 class ThreadMessagesResponse(BaseModel):
-    messages: list[TranscriptMessage]
+    messages: list[UIMessage]
 
 
 class ModelListResponse(BaseModel):

@@ -197,35 +197,6 @@ wheels = [
 ]
 
 [[package]]
-name = "lattice"
-version = "0.4.0"
-source = { editable = "." }
-dependencies = [
-    { name = "beautifulsoup4" },
-    { name = "fastapi" },
-    { name = "httpx" },
-    { name = "logfire" },
-    { name = "pydantic-ai" },
-    { name = "pydantic-ai-slim", extra = ["ag-ui"] },
-    { name = "textual" },
-    { name = "trafilatura" },
-    { name = "uvicorn" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "beautifulsoup4", specifier = ">=4.14.3" },
-    { name = "fastapi", specifier = ">=0.110.0" },
-    { name = "httpx", specifier = ">=0.27.0" },
-    { name = "logfire", specifier = ">=3.0.0" },
-    { name = "pydantic-ai", specifier = ">=1.37.0" },
-    { name = "pydantic-ai-slim", extras = ["ag-ui"], specifier = ">=1.37.0" },
-    { name = "textual", specifier = ">=6.11.0" },
-    { name = "trafilatura", specifier = ">=2.0.0" },
-    { name = "uvicorn", specifier = ">=0.30.0" },
-]
-
-[[package]]
 name = "boto3"
 version = "1.42.14"
 source = { registry = "https://pypi.org/simple" }
@@ -1085,6 +1056,33 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/43/4b/674af6ef2f97d56f0ab5153bf0bfa28ccb6c3ed4d1babf4305449668807b/keyring-25.7.0.tar.gz", hash = "sha256:fe01bd85eb3f8fb3dd0405defdeac9a5b4f6f0439edbb3149577f244a2e8245b", size = 63516, upload-time = "2025-11-16T16:26:09.482Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/81/db/e655086b7f3a705df045bf0933bdd9c2f79bb3c97bfef1384598bb79a217/keyring-25.7.0-py3-none-any.whl", hash = "sha256:be4a0b195f149690c166e850609a477c532ddbfbaed96a404d4e43f8d5e2689f", size = 39160, upload-time = "2025-11-16T16:26:08.402Z" },
+]
+
+[[package]]
+name = "lattice"
+version = "0.4.0"
+source = { editable = "." }
+dependencies = [
+    { name = "beautifulsoup4" },
+    { name = "fastapi" },
+    { name = "httpx" },
+    { name = "logfire" },
+    { name = "pydantic-ai" },
+    { name = "textual" },
+    { name = "trafilatura" },
+    { name = "uvicorn" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "beautifulsoup4", specifier = ">=4.14.3" },
+    { name = "fastapi", specifier = ">=0.110.0" },
+    { name = "httpx", specifier = ">=0.27.0" },
+    { name = "logfire", specifier = ">=3.0.0" },
+    { name = "pydantic-ai", specifier = ">=1.37.0" },
+    { name = "textual", specifier = ">=6.11.0" },
+    { name = "trafilatura", specifier = ">=2.0.0" },
+    { name = "uvicorn", specifier = ">=0.30.0" },
 ]
 
 [[package]]

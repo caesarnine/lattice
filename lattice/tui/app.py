@@ -7,23 +7,18 @@ from uuid import uuid4
 if TYPE_CHECKING:
     from lattice.cli import ConnectionInfo
 
-from ag_ui.core import (
-    BaseEvent,
-    RunAgentInput,
-    RunErrorEvent,
-    TextMessageContentEvent,
-    TextMessageEndEvent,
-    TextMessageStartEvent,
-    ThinkingEndEvent,
-    ThinkingStartEvent,
-    ThinkingTextMessageContentEvent,
-    ThinkingTextMessageEndEvent,
-    ThinkingTextMessageStartEvent,
-    ToolCallArgsEvent,
-    ToolCallEndEvent,
-    ToolCallResultEvent,
-    ToolCallStartEvent,
-    UserMessage,
+from pydantic_ai.ui.vercel_ai.request_types import (
+    DynamicToolInputAvailablePart,
+    DynamicToolOutputAvailablePart,
+    DynamicToolOutputErrorPart,
+    FileUIPart,
+    ReasoningUIPart,
+    SubmitMessage,
+    TextUIPart,
+    ToolInputAvailablePart,
+    ToolOutputAvailablePart,
+    ToolOutputErrorPart,
+    UIMessage,
 )
 from textual import on
 from textual.app import App, ComposeResult
@@ -674,104 +669,211 @@ class AgentApp(App):
 
         try:
             async for event in self.client.run_stream(run_input):
-                self._handle_ag_ui_event(event)
+                self._handle_ui_event(event)
         except Exception as exc:
             self._add_system_message(f"Run error: {exc}")
         finally:
             self._set_status("")
             self._scroll_to_bottom()
 
-    def _build_run_input(self, user_input: str) -> RunAgentInput:
-        return RunAgentInput(
+    def _build_run_input(self, user_input: str) -> SubmitMessage:
+        return SubmitMessage(
+            id=uuid4().hex,
+            messages=[
+                UIMessage(
+                    id=uuid4().hex,
+                    role="user",
+                    parts=[TextUIPart(text=user_input)],
+                )
+            ],
+            session_id=self.session_id,
             thread_id=self.thread_id,
-            run_id=uuid4().hex,
-            parent_run_id=None,
-            state={},
-            messages=[UserMessage(id=uuid4().hex, content=user_input)],
-            tools=[],
-            context=[],
-            forwarded_props={},
         )
 
-    def _handle_ag_ui_event(self, event: BaseEvent) -> None:
-        if isinstance(event, TextMessageStartEvent):
-            self._handle_text_message_start(event)
+    def _handle_ui_event(self, event: dict[str, Any]) -> None:
+        event_type = event.get("type")
+        if event_type == "text-start":
+            message_id = str(event.get("id") or uuid4().hex)
+            self._handle_text_message_start(message_id)
             return
-        if isinstance(event, TextMessageContentEvent):
-            self._handle_text_message_content(event)
+        if event_type == "text-delta":
+            message_id = str(event.get("id") or "")
+            delta = str(event.get("delta") or "")
+            if message_id:
+                self._handle_text_message_content(message_id, delta)
             return
-        if isinstance(event, TextMessageEndEvent):
+        if event_type == "text-end":
             return
-        if isinstance(event, ThinkingStartEvent):
-            self._ensure_thinking()
+        if event_type == "reasoning-start":
+            message_id = str(event.get("id") or uuid4().hex)
+            self._handle_thinking_start(message_id)
             return
-        if isinstance(event, ThinkingTextMessageStartEvent):
-            self._ensure_thinking()
+        if event_type == "reasoning-delta":
+            message_id = str(event.get("id") or "")
+            delta = str(event.get("delta") or "")
+            if message_id:
+                self._handle_thinking_delta(message_id, delta)
             return
-        if isinstance(event, ThinkingTextMessageContentEvent):
-            self._ensure_thinking()
-            if self._current_thinking:
-                self._current_thinking.append_content(event.delta)
+        if event_type == "reasoning-end":
             return
-        if isinstance(event, ThinkingTextMessageEndEvent):
+        if event_type == "tool-input-start":
+            tool_call_id = str(event.get("toolCallId") or "")
+            tool_name = str(event.get("toolName") or "tool")
+            if tool_call_id:
+                self._add_tool_call(tool_name, "", tool_call_id)
             return
-        if isinstance(event, ThinkingEndEvent):
+        if event_type == "tool-input-delta":
+            tool_call_id = str(event.get("toolCallId") or "")
+            delta = str(event.get("inputTextDelta") or "")
+            if tool_call_id and delta:
+                self._append_tool_args(tool_call_id, delta)
             return
-        if isinstance(event, ToolCallStartEvent):
-            self._add_tool_call(event.tool_call_name, "", event.tool_call_id)
+        if event_type == "tool-input-available":
+            tool_call_id = str(event.get("toolCallId") or "")
+            tool_name = str(event.get("toolName") or "tool")
+            if tool_call_id:
+                self._add_tool_call(tool_name, event.get("input"), tool_call_id)
             return
-        if isinstance(event, ToolCallArgsEvent):
-            self._append_tool_args(event.tool_call_id, event.delta)
+        if event_type == "tool-output-available":
+            tool_call_id = str(event.get("toolCallId") or "")
+            if tool_call_id:
+                self._set_tool_result(tool_call_id, event.get("output"))
             return
-        if isinstance(event, ToolCallEndEvent):
+        if event_type == "tool-output-error":
+            tool_call_id = str(event.get("toolCallId") or "")
+            error_text = str(event.get("errorText") or "Tool error")
+            if tool_call_id:
+                self._set_tool_result(tool_call_id, {"stderr": error_text, "exit_code": 1})
             return
-        if isinstance(event, ToolCallResultEvent):
-            self._set_tool_result_content(event.tool_call_id, event.content)
-            return
-        if isinstance(event, RunErrorEvent):
-            self._add_system_message(f"Run error: {event.message}")
+        if event_type == "error":
+            error_text = str(event.get("errorText") or "Unknown error")
+            self._add_system_message(f"Run error: {error_text}")
             return
 
-    def _handle_text_message_start(self, event: TextMessageStartEvent) -> None:
-        role = event.role or "assistant"
+    def _handle_text_message_start(self, message_id: str, role: str = "assistant") -> None:
+        msg = ChatMessage(role=role)
         if role == "assistant":
-            msg = ChatMessage(role="assistant")
             self._current_assistant = msg
-        elif role in {"system", "developer"}:
-            msg = ChatMessage(role="system")
-        elif role == "user":
-            msg = ChatMessage(role="user")
-        else:
-            msg = ChatMessage(role=role)
         chat = self.query_one("#chat-scroll", VerticalScroll)
         chat.mount(msg)
-        self._message_map[event.message_id] = msg
+        self._message_map[message_id] = msg
         self._scroll_to_bottom()
 
-    def _handle_text_message_content(self, event: TextMessageContentEvent) -> None:
-        msg = self._message_map.get(event.message_id)
+    def _handle_text_message_content(self, message_id: str, delta: str) -> None:
+        msg = self._message_map.get(message_id)
         if msg is None:
             msg = ChatMessage(role="assistant")
             chat = self.query_one("#chat-scroll", VerticalScroll)
             chat.mount(msg)
-            self._message_map[event.message_id] = msg
+            self._message_map[message_id] = msg
             self._current_assistant = msg
             self._scroll_to_bottom()
-        msg.append_content(event.delta)
+        msg.append_content(delta)
 
-    def _ensure_thinking(self) -> None:
-        if self._current_thinking is None:
-            self._current_thinking = ChatMessage(role="thinking")
-            chat = self.query_one("#chat-scroll", VerticalScroll)
-            chat.mount(self._current_thinking)
-            self._scroll_to_bottom()
+    def _handle_thinking_start(self, message_id: str) -> None:
+        msg = ChatMessage(role="thinking")
+        chat = self.query_one("#chat-scroll", VerticalScroll)
+        chat.mount(msg)
+        self._message_map[message_id] = msg
+        self._current_thinking = msg
+        self._scroll_to_bottom()
 
-    def _ensure_assistant(self) -> None:
-        if self._current_assistant is None:
-            self._current_assistant = ChatMessage(role="assistant")
+    def _handle_thinking_delta(self, message_id: str, delta: str) -> None:
+        msg = self._message_map.get(message_id)
+        if msg is None:
+            msg = ChatMessage(role="thinking")
             chat = self.query_one("#chat-scroll", VerticalScroll)
-            chat.mount(self._current_assistant)
+            chat.mount(msg)
+            self._message_map[message_id] = msg
+            self._current_thinking = msg
             self._scroll_to_bottom()
+        msg.append_content(delta)
+
+    def _hydrate_ui_messages(self, messages: list[UIMessage]) -> None:
+        for message in messages:
+            if message.role == "system":
+                content = self._collect_ui_text(message.parts)
+                if content:
+                    self._add_system_message(content)
+                continue
+            if message.role == "user":
+                content = self._collect_ui_text(message.parts)
+                if content:
+                    self._add_user_message(content)
+                continue
+            if message.role == "assistant":
+                self._render_assistant_parts(message.parts)
+
+    def _collect_ui_text(self, parts: list[Any]) -> str:
+        chunks: list[str] = []
+        for part in parts:
+            if isinstance(part, TextUIPart):
+                if part.text:
+                    chunks.append(part.text)
+            elif isinstance(part, FileUIPart):
+                label = part.filename or part.media_type or "file"
+                chunks.append(f"[{label}]")
+        return "\n".join(chunks).strip()
+
+    def _render_assistant_parts(self, parts: list[Any]) -> None:
+        buffer: list[str] = []
+
+        def flush_buffer() -> None:
+            if not buffer:
+                return
+            content = "".join(buffer).strip()
+            buffer.clear()
+            if content:
+                self._add_assistant_message(content)
+
+        for part in parts:
+            if isinstance(part, TextUIPart):
+                buffer.append(part.text)
+                continue
+            if isinstance(part, ReasoningUIPart):
+                flush_buffer()
+                if part.text:
+                    self._add_thinking_message(part.text)
+                continue
+            if isinstance(part, FileUIPart):
+                label = part.filename or part.media_type or "file"
+                buffer.append(f"[{label}]")
+                continue
+            if isinstance(part, ToolInputAvailablePart):
+                flush_buffer()
+                tool_name = part.type.removeprefix("tool-")
+                self._add_tool_call(tool_name, part.input or "", part.tool_call_id)
+                continue
+            if isinstance(part, ToolOutputAvailablePart):
+                flush_buffer()
+                tool_name = part.type.removeprefix("tool-")
+                self._add_tool_call(tool_name, part.input or "", part.tool_call_id)
+                if part.output is not None:
+                    self._set_tool_result(part.tool_call_id, part.output)
+                continue
+            if isinstance(part, ToolOutputErrorPart):
+                flush_buffer()
+                tool_name = part.type.removeprefix("tool-")
+                self._add_tool_call(tool_name, part.input or "", part.tool_call_id)
+                self._set_tool_result(part.tool_call_id, {"stderr": part.error_text, "exit_code": 1})
+                continue
+            if isinstance(part, DynamicToolInputAvailablePart):
+                flush_buffer()
+                self._add_tool_call(part.tool_name, part.input or "", part.tool_call_id)
+                continue
+            if isinstance(part, DynamicToolOutputAvailablePart):
+                flush_buffer()
+                self._add_tool_call(part.tool_name, part.input or "", part.tool_call_id)
+                if part.output is not None:
+                    self._set_tool_result(part.tool_call_id, part.output)
+                continue
+            if isinstance(part, DynamicToolOutputErrorPart):
+                flush_buffer()
+                self._add_tool_call(part.tool_name, part.input or "", part.tool_call_id)
+                self._set_tool_result(part.tool_call_id, {"stderr": part.error_text, "exit_code": 1})
+                continue
+
+        flush_buffer()
 
     # -------------------------------------------------------------------------
     # Message Helpers
@@ -787,6 +889,13 @@ class AgentApp(App):
         msg = ChatMessage(role="assistant", content=content)
         chat.mount(msg)
         self._current_assistant = msg
+        self._scroll_to_bottom()
+
+    def _add_thinking_message(self, content: str) -> None:
+        chat = self.query_one("#chat-scroll", VerticalScroll)
+        msg = ChatMessage(role="thinking", content=content)
+        chat.mount(msg)
+        self._current_thinking = msg
         self._scroll_to_bottom()
 
     def _add_system_message(self, content: str) -> None:
@@ -817,17 +926,6 @@ class AgentApp(App):
             chat = self.query_one("#chat-scroll", VerticalScroll)
             chat.mount(tool_widget)
         tool_widget.append_args(delta)
-
-    def _set_tool_result_content(self, tool_call_id: str, content: str) -> None:
-        data: Any = content
-        if isinstance(content, str):
-            stripped = content.strip()
-            if stripped.startswith("{") or stripped.startswith("["):
-                try:
-                    data = json.loads(stripped)
-                except json.JSONDecodeError:
-                    data = content
-        self._set_tool_result(tool_call_id, data)
 
     def _set_tool_result(self, tool_call_id: str, result: Any) -> None:
         if tool_call_id not in self._tool_calls:
@@ -906,8 +1004,8 @@ class AgentApp(App):
         self._update_header()
         await self._refresh_agent()
         try:
-            async for event in self.client.iter_thread_events(self.session_id, thread_id):
-                self._handle_ag_ui_event(event)
+            payload = await self.client.get_thread_messages(self.session_id, thread_id)
+            self._hydrate_ui_messages(payload.messages)
         except Exception as exc:
             self._add_system_message(f"Failed to load history: {exc}")
             return

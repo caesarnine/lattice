@@ -2,44 +2,32 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from ag_ui.core import RunAgentInput
-from pydantic_ai.ui.ag_ui import AGUIAdapter
+from pydantic_ai.ui.vercel_ai.request_types import RequestData
 
 
-def resolve_session_id(adapter: AGUIAdapter, *, default_session_id: str) -> str:
-    state = adapter.state
-    if isinstance(state, dict):
-        session_id = state.get("session_id") or state.get("sessionId")
-        if isinstance(session_id, str) and session_id:
-            return session_id
-    forwarded = getattr(adapter.run_input, "forwarded_props", None)
-    if isinstance(forwarded, dict):
-        session_id = forwarded.get("session_id") or forwarded.get("sessionId")
-        if isinstance(session_id, str) and session_id:
-            return session_id
-    return default_session_id
+def _resolve_extra_string(run_input: RequestData, *keys: str) -> str | None:
+    for key in keys:
+        value = getattr(run_input, key, None)
+        if isinstance(value, str) and value:
+            return value
+    return None
 
 
-def resolve_session_id_from_run_input(run_input: RunAgentInput, *, default_session_id: str) -> str:
-    state = run_input.state
-    if isinstance(state, dict):
-        session_id = state.get("session_id") or state.get("sessionId")
-        if isinstance(session_id, str) and session_id:
-            return session_id
-    forwarded = getattr(run_input, "forwarded_props", None)
-    if isinstance(forwarded, dict):
-        session_id = forwarded.get("session_id") or forwarded.get("sessionId")
-        if isinstance(session_id, str) and session_id:
-            return session_id
-    return default_session_id
+def resolve_session_id_from_request(run_input: RequestData, *, default_session_id: str) -> str:
+    session_id = _resolve_extra_string(run_input, "session_id", "sessionId")
+    return session_id or default_session_id
 
 
-def incoming_has_history(adapter: AGUIAdapter) -> bool:
-    roles = {getattr(msg, "role", None) for msg in adapter.run_input.messages}
-    return bool(roles.intersection({"assistant", "tool"}))
+def resolve_thread_id_from_request(run_input: RequestData) -> str | None:
+    return _resolve_extra_string(run_input, "thread_id", "threadId")
 
 
-def select_message_history(adapter: AGUIAdapter, stored_messages: Iterable) -> list:
-    if incoming_has_history(adapter):
+def incoming_has_history(run_input: RequestData) -> bool:
+    roles = {msg.role for msg in run_input.messages}
+    return bool(roles.intersection({"assistant", "system"}))
+
+
+def select_message_history(run_input: RequestData, stored_messages: Iterable) -> list:
+    if incoming_has_history(run_input):
         return []
     return list(stored_messages)

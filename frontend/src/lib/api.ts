@@ -1,4 +1,4 @@
-import { AgUiEvent, streamAgUiEvents } from "@/lib/agui";
+import { UiMessage, UiStreamEvent, streamUiEvents } from "@/lib/vercel";
 import type { components } from "@/lib/openapi";
 
 const FALLBACK_HOST =
@@ -179,27 +179,23 @@ export async function clearThread(sessionId: string, threadId: string): Promise<
   return data.cleared ?? threadId;
 }
 
-export async function streamThreadEvents(
+export async function getThreadMessages(
   sessionId: string,
-  threadId: string,
-  signal?: AbortSignal
-): Promise<AsyncGenerator<AgUiEvent>> {
+  threadId: string
+): Promise<UiMessage[]> {
   const response = await fetch(
-    `${SERVER_URL}/sessions/${sessionId}/threads/${threadId}/events`,
-    {
-      headers: { accept: "text/event-stream" },
-      signal
-    }
+    `${SERVER_URL}/sessions/${sessionId}/threads/${threadId}/messages`
   );
-  await ensureOk(response, "Failed to load thread events");
-  return streamAgUiEvents(response, signal);
+  await ensureOk(response, "Failed to load thread messages");
+  const data = (await response.json()) as { messages?: UiMessage[] };
+  return data.messages ?? [];
 }
 
-export async function runAgentStream(
+export async function runChatStream(
   payload: Record<string, unknown>,
   signal?: AbortSignal
-): Promise<AsyncGenerator<AgUiEvent>> {
-  const response = await fetch(`${SERVER_URL}/ag-ui`, {
+): Promise<AsyncGenerator<UiStreamEvent>> {
+  const response = await fetch(`${SERVER_URL}/ui/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -209,5 +205,5 @@ export async function runAgentStream(
     signal
   });
   await ensureOk(response, "Failed to run agent");
-  return streamAgUiEvents(response, signal);
+  return streamUiEvents(response, signal);
 }

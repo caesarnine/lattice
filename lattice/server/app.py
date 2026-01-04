@@ -23,8 +23,6 @@ def create_app(
     ctx = AppContext(
         config=config,
         store=store,
-        workspace=config.workspace_dir,
-        project_root=config.project_root,
         registry=registry,
     )
 

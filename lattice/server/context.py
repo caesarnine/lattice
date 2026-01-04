@@ -12,6 +12,12 @@ from lattice.core.session import SessionStore
 class AppContext:
     config: StorageConfig
     store: SessionStore
-    workspace: Path
-    project_root: Path
     registry: AgentRegistry
+
+    @property
+    def workspace(self) -> Path:
+        return self.config.workspace_dir
+
+    @property
+    def project_root(self) -> Path:
+        return self.config.project_root

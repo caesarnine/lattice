@@ -51,8 +51,6 @@ def agent_ctx(tmp_path):
     ctx = AppContext(
         config=config,
         store=store,
-        workspace=tmp_path,
-        project_root=tmp_path,
         registry=AgentRegistry(
             agents={"alpha": default_plugin, "beta": other_plugin},
             default_agent="alpha",

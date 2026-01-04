@@ -19,6 +19,7 @@ from lattice.agents.builtins.lattice_tools import (
 )
 from lattice.agents.plugin import AgentPlugin, AgentRunContext, list_known_models
 from lattice.core.scope import ensure_workspace
+from lattice.env import LATTICE_LOGFIRE, LATTICE_MODEL, read_bool_env, read_env
 
 
 class BashExecutionResult(BaseModel):
@@ -280,14 +281,14 @@ class AgentDeps:
 
 
 def _configure_telemetry() -> None:
-    enabled = os.getenv("LATTICE_LOGFIRE", "0").lower() in {"1", "true", "yes"}
+    enabled = read_bool_env(LATTICE_LOGFIRE)
     if not enabled:
         return
     logfire.configure(send_to_logfire=True, console=False)
     logfire.instrument_pydantic_ai()
 
 
-DEFAULT_MODEL = os.getenv("LATTICE_MODEL", "google-gla:gemini-3-flash-preview")
+DEFAULT_MODEL = read_env(LATTICE_MODEL) or "google-gla:gemini-3-flash-preview"
 
 
 def _build_agent(model_name: str) -> Agent[AgentDeps, str]:

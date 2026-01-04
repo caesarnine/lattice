@@ -114,14 +114,7 @@ class SQLiteSessionStore(SessionStore):
     def set_session_model(self, session_id: str, model: str | None) -> None:
         with self._connect() as conn:
             now = time.time()
-            conn.execute(
-                """
-                INSERT INTO sessions (session_id, created_at, updated_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(session_id) DO UPDATE SET updated_at = excluded.updated_at
-                """,
-                (session_id, now, now),
-            )
+            self._touch_session(conn, session_id, now=now)
             conn.execute(
                 """
                 INSERT INTO session_settings (session_id, model, updated_at)
@@ -166,23 +159,8 @@ class SQLiteSessionStore(SessionStore):
         payload = settings.model_dump(mode="json", exclude_none=True)
         settings_json = json.dumps(payload, ensure_ascii=True)
         with self._connect() as conn:
-            conn.execute(
-                """
-                INSERT INTO sessions (session_id, created_at, updated_at)
-                VALUES (?, ?, ?)
-                ON CONFLICT(session_id) DO UPDATE SET updated_at = excluded.updated_at
-                """,
-                (session_id, now, now),
-            )
-            conn.execute(
-                """
-                INSERT INTO threads (session_id, thread_id, created_at, updated_at, messages)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(session_id, thread_id) DO UPDATE SET
-                    updated_at = excluded.updated_at
-                """,
-                (session_id, thread_id, now, now, dump_messages([])),
-            )
+            self._touch_session(conn, session_id, now=now)
+            self._touch_thread(conn, session_id, thread_id, now=now)
             conn.execute(
                 """
                 INSERT INTO thread_settings (session_id, thread_id, created_at, updated_at, settings)
@@ -245,14 +223,7 @@ class SQLiteSessionStore(SessionStore):
                 """
             )
 
-    def _upsert_thread(
-        self,
-        conn: sqlite3.Connection,
-        session_id: str,
-        thread_id: str,
-        messages: list[ModelMessage],
-    ) -> None:
-        now = time.time()
+    def _touch_session(self, conn: sqlite3.Connection, session_id: str, *, now: float) -> None:
         conn.execute(
             """
             INSERT INTO sessions (session_id, created_at, updated_at)
@@ -261,6 +232,34 @@ class SQLiteSessionStore(SessionStore):
             """,
             (session_id, now, now),
         )
+
+    def _touch_thread(
+        self,
+        conn: sqlite3.Connection,
+        session_id: str,
+        thread_id: str,
+        *,
+        now: float,
+    ) -> None:
+        conn.execute(
+            """
+            INSERT INTO threads (session_id, thread_id, created_at, updated_at, messages)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(session_id, thread_id) DO UPDATE SET
+                updated_at = excluded.updated_at
+            """,
+            (session_id, thread_id, now, now, dump_messages([])),
+        )
+
+    def _upsert_thread(
+        self,
+        conn: sqlite3.Connection,
+        session_id: str,
+        thread_id: str,
+        messages: list[ModelMessage],
+    ) -> None:
+        now = time.time()
+        self._touch_session(conn, session_id, now=now)
         messages_blob = dump_messages(messages)
         conn.execute(
             """

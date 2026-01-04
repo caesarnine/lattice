@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 
 from lattice.agents.plugin import AgentPlugin
+from lattice.env import AGENT_MODEL, LATTICE_MODEL, first_env
 from lattice.server.context import AppContext
 
 
@@ -30,9 +30,9 @@ def resolve_default_model(plugin: AgentPlugin) -> str:
     configured = (plugin.default_model or "").strip()
     if configured:
         return configured
-    env = (os.getenv("AGENT_MODEL") or os.getenv("LATTICE_MODEL") or "").strip()
-    if env:
-        return env
+    env_model = first_env(AGENT_MODEL, LATTICE_MODEL)
+    if env_model:
+        return env_model
     models = list_models(plugin)
     return models[0] if models else ""
 

@@ -14,9 +14,17 @@ import httpx
 import uvicorn
 
 from lattice.client import AgentClient
+from lattice.env import (
+    AGENT_DEFAULT,
+    AGENT_PLUGINS,
+    LATTICE_PROJECT_ROOT,
+    LATTICE_SERVER_URL,
+    LATTICE_WORKSPACE_MODE,
+    read_env,
+)
 from lattice.tui.app import run_tui
 
-DEFAULT_SERVER_URL = os.getenv("LATTICE_SERVER_URL")
+DEFAULT_SERVER_URL = read_env(LATTICE_SERVER_URL)
 DEFAULT_AUTO_DISCOVER_PORT = 8000
 
 
@@ -130,7 +138,7 @@ def _add_tui_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_server_args(parser: argparse.ArgumentParser) -> None:
-    env_workspace = (os.getenv("LATTICE_WORKSPACE_MODE") or "").strip().lower()
+    env_workspace = (read_env(LATTICE_WORKSPACE_MODE) or "").strip().lower()
     default_workspace = "central" if env_workspace == "central" else "local"
     parser.add_argument(
         "--host",
@@ -401,12 +409,12 @@ def _populate_server_env(
         else:
             env[key] = value
 
-    set_value("LATTICE_PROJECT_ROOT", str(project_root))
-    set_value("LATTICE_WORKSPACE_MODE", workspace_mode)
+    set_value(LATTICE_PROJECT_ROOT, str(project_root))
+    set_value(LATTICE_WORKSPACE_MODE, workspace_mode)
     if default_agent is not None:
-        set_value("AGENT_DEFAULT", str(default_agent))
+        set_value(AGENT_DEFAULT, str(default_agent))
     if agent_specs is not None:
-        set_value("AGENT_PLUGINS", ",".join(agent_specs))
+        set_value(AGENT_PLUGINS, ",".join(agent_specs))
 
 
 def _build_server_context(server_url: str) -> TuiClientContext:

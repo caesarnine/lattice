@@ -63,8 +63,6 @@ def model_ctx(tmp_path):
     ctx = AppContext(
         config=config,
         store=store,
-        workspace=tmp_path,
-        project_root=tmp_path,
         registry=AgentRegistry(agents={}, default_agent="agent"),
     )
     return ctx, store

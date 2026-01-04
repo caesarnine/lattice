@@ -1,11 +1,20 @@
 from __future__ import annotations
 
-import os
 import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from lattice.env import (
+    LATTICE_DATA_DIR,
+    LATTICE_DB_PATH,
+    LATTICE_PROJECT_ROOT,
+    LATTICE_SESSION_FILE,
+    LATTICE_SESSION_ID,
+    LATTICE_WORKSPACE_DIR,
+    LATTICE_WORKSPACE_MODE,
+    read_env,
+)
 
 @dataclass(frozen=True)
 class StorageConfig:
@@ -22,7 +31,7 @@ def _coerce_path(value: Path | str) -> Path:
 
 
 def _resolve_workspace_mode(explicit: str | None) -> Literal["central", "local"]:
-    value = (explicit or os.getenv("LATTICE_WORKSPACE_MODE") or "local").strip().lower()
+    value = (explicit or read_env(LATTICE_WORKSPACE_MODE) or "local").strip().lower()
     if value in {"local", "project", "cwd"}:
         return "local"
     return "central"
@@ -31,9 +40,9 @@ def _resolve_workspace_mode(explicit: str | None) -> Literal["central", "local"]
 def _resolve_path_override(explicit: Path | None, env_var: str) -> Path | None:
     if explicit is not None:
         return _coerce_path(explicit)
-    override = os.getenv(env_var)
+    override = read_env(env_var)
     if override:
-        return _coerce_path(override.strip())
+        return _coerce_path(override)
     return None
 
 
@@ -44,7 +53,7 @@ def resolve_storage_config(
     data_dir: Path | None = None,
     workspace_dir: Path | None = None,
 ) -> StorageConfig:
-    env_project_root = os.getenv("LATTICE_PROJECT_ROOT")
+    env_project_root = read_env(LATTICE_PROJECT_ROOT)
     if project_root is not None:
         resolved_project_root = _coerce_path(project_root)
     elif env_project_root:
@@ -53,7 +62,7 @@ def resolve_storage_config(
         resolved_project_root = Path.cwd()
     resolved_mode = _resolve_workspace_mode(workspace_mode)
 
-    data_dir = _resolve_path_override(data_dir, "LATTICE_DATA_DIR")
+    data_dir = _resolve_path_override(data_dir, LATTICE_DATA_DIR)
 
     if data_dir is None:
         if resolved_mode == "local":
@@ -61,14 +70,14 @@ def resolve_storage_config(
         else:
             data_dir = Path.home() / ".lattice"
 
-    workspace_dir = _resolve_path_override(workspace_dir, "LATTICE_WORKSPACE_DIR")
+    workspace_dir = _resolve_path_override(workspace_dir, LATTICE_WORKSPACE_DIR)
 
     if workspace_dir is None:
         workspace_dir = data_dir / "workspace"
 
-    db_path_env = os.getenv("LATTICE_DB_PATH")
+    db_path_env = read_env(LATTICE_DB_PATH)
     db_path = _coerce_path(db_path_env) if db_path_env else data_dir / "lattice.db"
-    session_path_env = os.getenv("LATTICE_SESSION_FILE")
+    session_path_env = read_env(LATTICE_SESSION_FILE)
     session_id_path = _coerce_path(session_path_env) if session_path_env else data_dir / "session_id"
 
     return StorageConfig(
@@ -103,8 +112,8 @@ def load_storage_config(
     return config
 
 
-def load_or_create_session_id(path: Path, *, env_var: str = "LATTICE_SESSION_ID") -> str:
-    override = os.getenv(env_var)
+def load_or_create_session_id(path: Path, *, env_var: str = LATTICE_SESSION_ID) -> str:
+    override = read_env(env_var)
     if override:
         return override
     if path.exists():

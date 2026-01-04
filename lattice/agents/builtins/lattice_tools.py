@@ -8,6 +8,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, TypedDict
 
+from lattice.env import LATTICE_GLOBAL_BIN, read_env
 
 class _ToolCacheEntry(TypedDict, total=False):
     description: str
@@ -16,7 +17,6 @@ class _ToolCacheEntry(TypedDict, total=False):
 
 
 _TOOL_CACHE_VERSION = 1
-_GLOBAL_BIN_ENV = "LATTICE_GLOBAL_BIN"
 
 
 def _tool_cache_path(workspace: Path) -> Path:
@@ -75,7 +75,7 @@ def _save_tool_cache(path: Path, tools: dict[str, _ToolCacheEntry]) -> None:
 
 
 def _resolve_global_bin() -> Path | None:
-    override = os.getenv(_GLOBAL_BIN_ENV)
+    override = read_env(LATTICE_GLOBAL_BIN)
     if override:
         value = override.strip()
         if value.lower() in {"0", "false", "no", "off", "disable", "disabled"}:

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import os
 from functools import lru_cache
 
 from pydantic_ai import Agent, RunContext
 
 from lattice.agents.plugin import AgentPlugin, list_known_models
+from lattice.env import AGENT_MODEL, LATTICE_MODEL, first_env
 
 
 SYSTEM_PROMPT = """\
@@ -22,11 +22,9 @@ When useful, include a short title on the first line.
 """
 
 
+POETRY_AGENT_MODEL = "POETRY_AGENT_MODEL"
 DEFAULT_MODEL = (
-    (os.getenv("POETRY_AGENT_MODEL") or "").strip()
-    or (os.getenv("AGENT_MODEL") or "").strip()
-    or (os.getenv("LATTICE_MODEL") or "").strip()
-    or "google-gla:gemini-3-flash-preview"
+    first_env(POETRY_AGENT_MODEL, AGENT_MODEL, LATTICE_MODEL) or "google-gla:gemini-3-flash-preview"
 )
 
 

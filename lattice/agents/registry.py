@@ -3,17 +3,15 @@ from __future__ import annotations
 import importlib
 import importlib.metadata
 import logging
-import os
 import pkgutil
 from dataclasses import dataclass
 from typing import Iterable
 
 from lattice.agents.plugin import AgentPlugin, load_plugin
+from lattice.env import AGENT_DEFAULT, AGENT_PLUGINS, read_env
 
 logger = logging.getLogger(__name__)
 
-AGENT_PLUGINS_ENV = "AGENT_PLUGINS"
-AGENT_DEFAULT_ENV = "AGENT_DEFAULT"
 AGENT_ENTRYPOINT_GROUP = "lattice.agents"
 DEFAULT_AGENT_ID = "lattice"
 
@@ -149,7 +147,7 @@ def load_registry(
     if plugin_specs is not None:
         extra_specs = [spec.strip() for spec in plugin_specs if spec and spec.strip()]
     else:
-        env_list = (os.getenv(AGENT_PLUGINS_ENV) or "").strip()
+        env_list = read_env(AGENT_PLUGINS)
         if env_list:
             extra_specs = _split_specs(env_list)
 
@@ -189,7 +187,7 @@ def load_registry(
         fallback = load_plugin()
         agents[fallback.id] = fallback
 
-    env_default = (os.getenv(AGENT_DEFAULT_ENV) or "").strip()
+    env_default = read_env(AGENT_DEFAULT) or ""
     configured_default = (default_spec or "").strip() or env_default
     resolved_default = (
         _resolve_agent_id(

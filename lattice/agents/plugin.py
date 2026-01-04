@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import importlib
 import inspect
-import os
 from dataclasses import dataclass, replace
 from functools import lru_cache
 from pathlib import Path
@@ -12,7 +11,8 @@ from pydantic_ai import Agent
 from pydantic_ai.models import KnownModelName, infer_model
 from pydantic_ai.ui.vercel_ai.request_types import RequestData
 
-AGENT_PLUGIN_ENV = "AGENT_PLUGIN"
+from lattice.env import AGENT_PLUGIN, read_env
+
 DEFAULT_PLUGIN_SPEC = "lattice.agents.builtins.lattice:plugin"
 
 
@@ -142,9 +142,8 @@ def load_plugin(
     name: str | None = None,
     deps_spec: str | None = None,
 ) -> AgentPlugin:
-    resolved_spec = (
-        (plugin_spec or "").strip() or (os.getenv(AGENT_PLUGIN_ENV) or "").strip() or DEFAULT_PLUGIN_SPEC
-    )
+    env_spec = read_env(AGENT_PLUGIN) or ""
+    resolved_spec = (plugin_spec or "").strip() or env_spec or DEFAULT_PLUGIN_SPEC
     obj = _load_symbol(resolved_spec)
 
     create_deps: CreateDepsFn | None = None

@@ -244,7 +244,11 @@ class AgentApp(App):
             if await self._thread_exists(new_id):
                 self._add_system_message(f"Thread '{new_id}' already exists.")
                 return
-            await self.client.create_thread(self.session_id, new_id)
+            try:
+                await self.client.create_thread(self.session_id, new_id)
+            except Exception as exc:
+                self._add_system_message(f"Failed to create thread '{new_id}': {exc}")
+                return
             await self._switch_thread(new_id, created=True)
             return
 
@@ -259,7 +263,20 @@ class AgentApp(App):
         if target == self.thread_id:
             self._add_system_message(f"Already on thread '{self.thread_id}'.")
             return
-        await self._switch_thread(target, created=not await self._thread_exists(target))
+        try:
+            exists = await self._thread_exists(target)
+        except Exception as exc:
+            self._add_system_message(f"Failed to load threads: {exc}")
+            return
+        created = False
+        if not exists:
+            try:
+                await self.client.create_thread(self.session_id, target)
+            except Exception as exc:
+                self._add_system_message(f"Failed to create thread '{target}': {exc}")
+                return
+            created = True
+        await self._switch_thread(target, created=created)
 
     async def _handle_agent_command(self, command: ParsedCommand) -> None:
         parts = command.args
@@ -661,25 +678,23 @@ class AgentApp(App):
 
     async def _switch_thread(self, new_thread_id: str, *, created: bool = False) -> None:
         self.action_clear_chat()
-        await self._load_thread_state(new_thread_id)
+        if not await self._load_thread_state(new_thread_id):
+            return
 
         if created:
             self._add_system_message(f"Created thread '{self.thread_id}'.")
         else:
             self._add_system_message(f"Switched to thread '{self.thread_id}'.")
 
-    async def _load_thread_state(self, thread_id: str) -> None:
-        self.thread_id = thread_id
-        self.agent_state.current_id = None
-        self.agent_state.current_name = None
-        self._update_header()
+    async def _load_thread_state(self, thread_id: str) -> bool:
         try:
             state = await self.client.get_thread_state(self.session_id, thread_id)
             self._apply_thread_state(state)
         except Exception as exc:
             self._add_system_message(f"Failed to load history: {exc}")
-            return
+            return False
         self._scroll_to_bottom()
+        return True
 
     async def _delete_thread(self, thread_id: str) -> None:
         threads = await self.client.list_threads(self.session_id)

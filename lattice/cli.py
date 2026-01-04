@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import argparse
 import os
+import socket
+import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
@@ -11,7 +14,6 @@ import httpx
 import uvicorn
 
 from lattice.client import AgentClient
-from lattice.client.inprocess import create_inprocess_client
 from lattice.tui.app import run_tui
 
 DEFAULT_SERVER_URL = os.getenv("LATTICE_SERVER_URL")
@@ -22,13 +24,15 @@ DEFAULT_AUTO_DISCOVER_PORT = 8000
 class ConnectionInfo:
     """Information about the TUI's connection mode."""
 
-    mode: str  # "server" or "local"
+    mode: str  # "server", "local", or "local-server"
     server_url: str | None = None
 
     @property
     def status_message(self) -> str:
         if self.mode == "server" and self.server_url:
             return f"Connecting to {self.server_url}..."
+        if self.mode == "local-server" and self.server_url:
+            return f"Starting local server at {self.server_url}..."
         return "Starting in local mode..."
 
     @property
@@ -37,7 +41,34 @@ class ConnectionInfo:
             # Extract host:port for display
             parsed = urlparse(self.server_url)
             return f":{parsed.port}" if parsed.port else parsed.netloc
+        if self.mode == "local-server" and self.server_url:
+            parsed = urlparse(self.server_url)
+            if parsed.port:
+                return f"local:{parsed.port}"
+            return "local"
         return "local"
+
+
+@dataclass
+class SpawnedServer:
+    process: subprocess.Popen
+    server_url: str
+
+    def shutdown(self, timeout: float = 3.0) -> None:
+        if self.process.poll() is not None:
+            return
+        self.process.terminate()
+        try:
+            self.process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            self.process.kill()
+
+
+@dataclass
+class TuiClientContext:
+    client: AgentClient
+    connection_info: ConnectionInfo
+    local_server: SpawnedServer | None = None
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -84,17 +115,17 @@ def _add_tui_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--local",
         action="store_true",
-        help="Force local mode (skip server auto-discovery)",
+        help="Force local server mode (skip server auto-discovery)",
     )
     parser.add_argument(
         "--agent",
         default=None,
-        help="Default agent id or name for this session (local/in-process mode only)",
+        help="Default agent id or name for this session (local mode only)",
     )
     parser.add_argument(
         "--agents",
         default=None,
-        help="Comma-separated agent plugin specs to load (local/in-process mode only)",
+        help="Comma-separated agent plugin specs to load (local mode only)",
     )
 
 
@@ -138,9 +169,13 @@ def _add_server_args(parser: argparse.ArgumentParser) -> None:
 def _run_tui_command(args: argparse.Namespace) -> None:
     project_root = Path.cwd()
 
-    client, connection_info = _create_tui_client(args, project_root=project_root)
-    print(connection_info.status_message)
-    run_tui(client=client, connection_info=connection_info)
+    context = _create_tui_client(args, project_root=project_root)
+    print(context.connection_info.status_message)
+    try:
+        run_tui(client=context.client, connection_info=context.connection_info)
+    finally:
+        if context.local_server:
+            context.local_server.shutdown()
 
 
 def _run_server_command(args: argparse.Namespace) -> None:
@@ -172,6 +207,87 @@ def _server_healthy(server_url: str) -> bool:
     return response.status_code == 200
 
 
+def _pick_local_port(host: str) -> int:
+    preferred = DEFAULT_AUTO_DISCOVER_PORT
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        try:
+            probe.bind((host, preferred))
+        except OSError:
+            pass
+        else:
+            return preferred
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.bind((host, 0))
+        return probe.getsockname()[1]
+
+
+def _wait_for_server(server_url: str, process: subprocess.Popen, timeout: float = 5.0) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            return False
+        if _server_healthy(server_url):
+            return True
+        time.sleep(0.1)
+    return False
+
+
+def _spawn_local_server(
+    *,
+    project_root: Path,
+    agent_specs: list[str] | None,
+    default_agent: str | None,
+) -> SpawnedServer:
+    host = "127.0.0.1"
+    port = _pick_local_port(host)
+    server_url = f"http://{host}:{port}"
+
+    env = os.environ.copy()
+    env["LATTICE_PROJECT_ROOT"] = str(project_root)
+    env["LATTICE_WORKSPACE_MODE"] = "local"
+    if default_agent is not None:
+        env["AGENT_DEFAULT"] = str(default_agent)
+    if agent_specs is not None:
+        env["AGENT_PLUGINS"] = ",".join(agent_specs)
+
+    cmd = [
+        sys.executable,
+        "-m",
+        "uvicorn",
+        "lattice.server.asgi:app",
+        "--host",
+        host,
+        "--port",
+        str(port),
+        "--log-level",
+        "warning",
+    ]
+    process = subprocess.Popen(
+        cmd,
+        cwd=str(project_root),
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+
+    if not _wait_for_server(server_url, process):
+        exit_code = process.poll()
+        if exit_code is None:
+            process.terminate()
+            try:
+                process.wait(timeout=1.0)
+            except subprocess.TimeoutExpired:
+                process.kill()
+            raise SystemExit("Local server failed to start (timeout). Try `lattice server` for logs.")
+        raise SystemExit(
+            f"Local server failed to start (exit code {exit_code}). Try `lattice server` for logs."
+        )
+
+    return SpawnedServer(process=process, server_url=server_url)
+
+
 def _is_same_project(server_url: str, project_root: Path) -> bool:
     """Check if the server is running for the same project."""
     try:
@@ -194,20 +310,24 @@ def _is_same_project(server_url: str, project_root: Path) -> bool:
 
 def _create_tui_client(
     args: argparse.Namespace, *, project_root: Path
-) -> tuple[AgentClient, ConnectionInfo]:
+) -> TuiClientContext:
     agent_spec = getattr(args, "agent", None)
     agents = getattr(args, "agents", None)
     agent_specs = [item.strip() for item in agents.split(",")] if isinstance(agents, str) and agents else None
 
-    # --local flag: skip all discovery, use in-process
+    # --local flag: skip all discovery, spawn local server
     if getattr(args, "local", False):
-        client, _ = create_inprocess_client(
+        local_server = _spawn_local_server(
             project_root=project_root,
-            workspace_mode="local",
             agent_specs=agent_specs,
             default_agent=agent_spec,
         )
-        return client, ConnectionInfo(mode="local")
+        client = AgentClient(local_server.server_url)
+        return TuiClientContext(
+            client=client,
+            connection_info=ConnectionInfo(mode="local-server", server_url=local_server.server_url),
+            local_server=local_server,
+        )
 
     # --server URL: explicit connection (no project validation)
     server = getattr(args, "server", None)
@@ -219,20 +339,30 @@ def _create_tui_client(
                 file=sys.stderr,
             )
             raise SystemExit(1)
-        return AgentClient(server_url), ConnectionInfo(mode="server", server_url=server_url)
+        return TuiClientContext(
+            client=AgentClient(server_url),
+            connection_info=ConnectionInfo(mode="server", server_url=server_url),
+        )
 
     # Auto-discovery: check default port, validate project
     auto_url = f"http://127.0.0.1:{DEFAULT_AUTO_DISCOVER_PORT}"
     if _server_healthy(auto_url):
         if _is_same_project(auto_url, project_root):
-            return AgentClient(auto_url), ConnectionInfo(mode="server", server_url=auto_url)
+            return TuiClientContext(
+                client=AgentClient(auto_url),
+                connection_info=ConnectionInfo(mode="server", server_url=auto_url),
+            )
         # Different project - silently fall back to local
 
-    # Fallback: in-process
-    client, _ = create_inprocess_client(
+    # Fallback: spawn local server
+    local_server = _spawn_local_server(
         project_root=project_root,
-        workspace_mode="local",
         agent_specs=agent_specs,
         default_agent=agent_spec,
     )
-    return client, ConnectionInfo(mode="local")
+    client = AgentClient(local_server.server_url)
+    return TuiClientContext(
+        client=client,
+        connection_info=ConnectionInfo(mode="local-server", server_url=local_server.server_url),
+        local_server=local_server,
+    )

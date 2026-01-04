@@ -136,9 +136,7 @@ class CommandSuggester(Suggester):
                 return command
         return None
 
-    def _suggest_from_choices(
-        self, value: str, *, root: str, choices: Sequence[str]
-    ) -> str | None:
+    def _suggest_from_choices(self, value: str, *, root: str, choices: Sequence[str]) -> str | None:
         root_cmd = f"/{root}"
         if value == root_cmd:
             return f"{root_cmd} "

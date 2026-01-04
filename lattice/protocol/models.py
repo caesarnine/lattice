@@ -34,6 +34,7 @@ class ModelListResponse(BaseModel):
     default_model: str
     models: list[str]
 
+
 class AgentInfo(BaseModel):
     id: str
     name: str

@@ -76,6 +76,8 @@ async def api_thread_messages(
     thread_id: str,
     ctx: AppContext = Depends(get_ctx),
 ) -> ThreadMessagesResponse:
-    messages = load_thread_messages(ctx.store, session_id=session_id, thread_id=thread_id, workspace=ctx.workspace)
+    messages = load_thread_messages(
+        ctx.store, session_id=session_id, thread_id=thread_id, workspace=ctx.workspace
+    )
     ui_messages = VercelAIAdapter.dump_messages(messages)
     return ThreadMessagesResponse(messages=ui_messages)

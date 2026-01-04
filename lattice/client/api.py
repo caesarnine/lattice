@@ -123,7 +123,9 @@ class AgentClient:
         self._raise_for_status(response, "Failed to load agent")
         return ThreadAgentResponse.model_validate(response.json())
 
-    async def set_thread_agent(self, session_id: str, thread_id: str, agent: str | None) -> ThreadAgentResponse:
+    async def set_thread_agent(
+        self, session_id: str, thread_id: str, agent: str | None
+    ) -> ThreadAgentResponse:
         payload = ThreadAgentRequest(agent=agent)
         response = await self._client.put(
             f"/sessions/{session_id}/threads/{thread_id}/agent",

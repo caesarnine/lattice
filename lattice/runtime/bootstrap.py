@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from lattice.app.context import AppContext
-from lattice.app.thread_state import build_thread_state
+from lattice.runtime.context import AppContext
+from lattice.runtime.thread_state import build_thread_state
 from lattice.domain.threads import ThreadAlreadyExistsError, create_thread, list_threads
 from lattice.protocol.schemas import SessionBootstrapResponse
 from lattice.settings.storage import load_or_create_session_id

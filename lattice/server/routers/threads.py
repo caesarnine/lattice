@@ -20,8 +20,8 @@ from lattice.protocol.schemas import (
     ThreadStateResponse,
     ThreadStateUpdateRequest,
 )
-from lattice.app.context import AppContext
-from lattice.app.thread_state import build_thread_state, update_thread_state
+from lattice.runtime.context import AppContext
+from lattice.runtime.thread_state import build_thread_state, update_thread_state
 from lattice.server.deps import get_ctx
 
 router = APIRouter()

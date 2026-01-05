@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pydantic_ai.ui.vercel_ai import VercelAIAdapter
 
-from lattice.app.context import AppContext
+from lattice.runtime.context import AppContext
 from lattice.domain.agents import select_agent_for_thread, set_thread_agent
 from lattice.domain.model_selection import (
     list_models,

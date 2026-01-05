@@ -5,9 +5,9 @@ import os
 
 from fastapi import APIRouter, Depends
 
-from lattice.app.bootstrap import bootstrap_session
+from lattice.runtime.bootstrap import bootstrap_session
 from lattice.protocol.schemas import ServerInfoResponse, SessionBootstrapResponse
-from lattice.app.context import AppContext
+from lattice.runtime.context import AppContext
 from lattice.server.deps import get_ctx
 from lattice.domain.agents import get_default_plugin
 

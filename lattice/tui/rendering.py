@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from typing import Any, Callable
+from uuid import uuid4
 
 from pydantic_ai.ui.vercel_ai.request_types import (
     DynamicToolInputAvailablePart,
@@ -33,12 +34,32 @@ class ChatRenderer:
         self._current_thinking: ChatMessage | None = None
         self._tool_calls: dict[str, ToolCall] = {}
         self._message_map: dict[str, ChatMessage] = {}
+        self._event_handlers = {
+            "text-start": self._on_text_start_event,
+            "text-delta": self._on_text_delta_event,
+            "reasoning-start": self._on_reasoning_start_event,
+            "reasoning-delta": self._on_reasoning_delta_event,
+            "tool-input-start": self._on_tool_input_start_event,
+            "tool-input-delta": self._on_tool_input_delta_event,
+            "tool-input-available": self._on_tool_input_available_event,
+            "tool-output-available": self._on_tool_output_available_event,
+            "tool-output-error": self._on_tool_output_error_event,
+            "error": self._on_error_event,
+        }
 
     def reset(self) -> None:
         self._current_assistant = None
         self._current_thinking = None
         self._tool_calls = {}
         self._message_map = {}
+
+    def handle_stream_event(self, event: dict[str, Any]) -> None:
+        event_type = event.get("type")
+        if not isinstance(event_type, str):
+            return
+        handler = self._event_handlers.get(event_type)
+        if handler:
+            handler(event)
 
     def add_user_message(self, content: str) -> None:
         chat = self._get_chat()
@@ -83,6 +104,61 @@ class ChatRenderer:
             self._current_assistant = msg
             self._scroll_to_bottom()
         msg.append_content(delta)
+
+    def _on_text_start_event(self, event: dict[str, Any]) -> None:
+        message_id = str(event.get("id") or uuid4().hex)
+        self.handle_text_start(message_id)
+
+    def _on_text_delta_event(self, event: dict[str, Any]) -> None:
+        message_id = str(event.get("id") or "")
+        delta = str(event.get("delta") or "")
+        if message_id:
+            self.handle_text_delta(message_id, delta)
+
+    def _on_reasoning_start_event(self, event: dict[str, Any]) -> None:
+        message_id = str(event.get("id") or uuid4().hex)
+        self.handle_thinking_start(message_id)
+
+    def _on_reasoning_delta_event(self, event: dict[str, Any]) -> None:
+        message_id = str(event.get("id") or "")
+        delta = str(event.get("delta") or "")
+        if message_id:
+            self.handle_thinking_delta(message_id, delta)
+
+    def _on_tool_input_start_event(self, event: dict[str, Any]) -> None:
+        self._handle_tool_input_event(event, include_args=False)
+
+    def _on_tool_input_delta_event(self, event: dict[str, Any]) -> None:
+        tool_call_id = str(event.get("toolCallId") or "")
+        delta = str(event.get("inputTextDelta") or "")
+        if tool_call_id and delta:
+            self.append_tool_args(tool_call_id, delta)
+
+    def _on_tool_input_available_event(self, event: dict[str, Any]) -> None:
+        self._handle_tool_input_event(event, include_args=True)
+
+    def _handle_tool_input_event(self, event: dict[str, Any], *, include_args: bool) -> None:
+        tool_call_id = str(event.get("toolCallId") or "")
+        if not tool_call_id:
+            return
+        tool_name = str(event.get("toolName") or "tool")
+        args = event.get("input") if include_args else ""
+        self.add_tool_call(tool_name, args, tool_call_id)
+
+    def _on_tool_output_available_event(self, event: dict[str, Any]) -> None:
+        tool_call_id = str(event.get("toolCallId") or "")
+        if tool_call_id:
+            self.set_tool_result(tool_call_id, event.get("output"))
+
+    def _on_tool_output_error_event(self, event: dict[str, Any]) -> None:
+        tool_call_id = str(event.get("toolCallId") or "")
+        error_text = str(event.get("errorText") or "Tool error")
+        if tool_call_id:
+            self.set_tool_result(tool_call_id, {"stderr": error_text, "exit_code": 1})
+
+    def _on_error_event(self, event: dict[str, Any]) -> None:
+        error_text = str(event.get("errorText") or "Unknown error")
+        self.add_system_message(f"Run error: {error_text}")
 
     def handle_thinking_start(self, message_id: str) -> None:
         msg = ChatMessage(role="thinking")

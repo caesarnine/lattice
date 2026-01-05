@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 if TYPE_CHECKING:
@@ -119,18 +119,6 @@ class AgentApp(App):
         )
         self._worker = None
         self._mounted = False
-        self._event_handlers = {
-            "text-start": self._on_text_start_event,
-            "text-delta": self._on_text_delta_event,
-            "reasoning-start": self._on_reasoning_start_event,
-            "reasoning-delta": self._on_reasoning_delta_event,
-            "tool-input-start": self._on_tool_input_start_event,
-            "tool-input-delta": self._on_tool_input_delta_event,
-            "tool-input-available": self._on_tool_input_available_event,
-            "tool-output-available": self._on_tool_output_available_event,
-            "tool-output-error": self._on_tool_output_error_event,
-            "error": self._on_error_event,
-        }
 
     def compose(self) -> ComposeResult:
         with Horizontal(id="header"):
@@ -533,7 +521,7 @@ class AgentApp(App):
 
         try:
             async for event in self.client.run_stream(run_input):
-                self._handle_ui_event(event)
+                self._renderer.handle_stream_event(event)
         except Exception as exc:
             self._add_system_message(f"Run error: {exc}")
         finally:
@@ -553,69 +541,6 @@ class AgentApp(App):
             session_id=self.session_id,
             thread_id=self.thread_id,
         )
-
-    def _handle_ui_event(self, event: dict[str, Any]) -> None:
-        event_type = event.get("type")
-        if not isinstance(event_type, str):
-            return
-        handler = self._event_handlers.get(event_type)
-        if handler:
-            handler(event)
-
-    def _on_text_start_event(self, event: dict[str, Any]) -> None:
-        message_id = str(event.get("id") or uuid4().hex)
-        self._renderer.handle_text_start(message_id)
-
-    def _on_text_delta_event(self, event: dict[str, Any]) -> None:
-        message_id = str(event.get("id") or "")
-        delta = str(event.get("delta") or "")
-        if message_id:
-            self._renderer.handle_text_delta(message_id, delta)
-
-    def _on_reasoning_start_event(self, event: dict[str, Any]) -> None:
-        message_id = str(event.get("id") or uuid4().hex)
-        self._renderer.handle_thinking_start(message_id)
-
-    def _on_reasoning_delta_event(self, event: dict[str, Any]) -> None:
-        message_id = str(event.get("id") or "")
-        delta = str(event.get("delta") or "")
-        if message_id:
-            self._renderer.handle_thinking_delta(message_id, delta)
-
-    def _on_tool_input_start_event(self, event: dict[str, Any]) -> None:
-        self._handle_tool_input_event(event, include_args=False)
-
-    def _on_tool_input_delta_event(self, event: dict[str, Any]) -> None:
-        tool_call_id = str(event.get("toolCallId") or "")
-        delta = str(event.get("inputTextDelta") or "")
-        if tool_call_id and delta:
-            self._renderer.append_tool_args(tool_call_id, delta)
-
-    def _on_tool_input_available_event(self, event: dict[str, Any]) -> None:
-        self._handle_tool_input_event(event, include_args=True)
-
-    def _handle_tool_input_event(self, event: dict[str, Any], *, include_args: bool) -> None:
-        tool_call_id = str(event.get("toolCallId") or "")
-        if not tool_call_id:
-            return
-        tool_name = str(event.get("toolName") or "tool")
-        args = event.get("input") if include_args else ""
-        self._renderer.add_tool_call(tool_name, args, tool_call_id)
-
-    def _on_tool_output_available_event(self, event: dict[str, Any]) -> None:
-        tool_call_id = str(event.get("toolCallId") or "")
-        if tool_call_id:
-            self._renderer.set_tool_result(tool_call_id, event.get("output"))
-
-    def _on_tool_output_error_event(self, event: dict[str, Any]) -> None:
-        tool_call_id = str(event.get("toolCallId") or "")
-        error_text = str(event.get("errorText") or "Tool error")
-        if tool_call_id:
-            self._renderer.set_tool_result(tool_call_id, {"stderr": error_text, "exit_code": 1})
-
-    def _on_error_event(self, event: dict[str, Any]) -> None:
-        error_text = str(event.get("errorText") or "Unknown error")
-        self._add_system_message(f"Run error: {error_text}")
 
     # -------------------------------------------------------------------------
     # Message Helpers

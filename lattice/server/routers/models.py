@@ -4,8 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from lattice.domain.threads import ThreadNotFoundError
 from lattice.protocol.schemas import ModelListResponse
-from lattice.app.context import AppContext
-from lattice.app.thread_state import list_thread_models
+from lattice.runtime.context import AppContext
+from lattice.runtime.thread_state import list_thread_models
 from lattice.server.deps import get_ctx
 
 router = APIRouter()

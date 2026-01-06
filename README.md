@@ -1,163 +1,193 @@
 # Lattis
 
-Lattis is a pluggable agent toolkit built on **pydantic-ai**: a FastAPI server with a Textual TUI and a bundled web UI.
-Agents are loaded as plugins, and each thread can select a different agent.
+Run AI agents on a server, interact from anywhere.
 
-## What you get
+I built an agent I liked ([Binsmith](https://github.com/caesarnine/binsmith)) and wanted to use it from my laptop, my phone, wherever. Lattis is what emerged: a server that hosts agents with a TUI for terminals and a web UI for browsers.
 
-- **Server + clients**: FastAPI API, Textual TUI, and a web UI (served by the same server).
-- **Pluggable agents**: built-ins, third-party entry points, or local `module:attribute` specs.
-- **Per-thread agent selection**: pick an agent per thread (TUI + web UI + API).
-- **Persistent state**: thread history in SQLite, plus a workspace directory for agents that write files/tools.
-
-## Requirements
-
-- [uv](https://docs.astral.sh/uv/)
-- Python 3.12+ (uv can install it automatically)
-- An API key for at least one model provider (Gemini, Anthropic, OpenAI, etc.)
+I run it on a Linux box in my Tailscale network. Start a conversation on my laptop, pick it up on my phone, everything stays in sync.
 
 ## Quick start
 
 ```bash
-uv sync
-uv run lattis
+# Run the TUI (starts a local server automatically)
+uvx lattis
+
+# Or run the server explicitly, then connect from anywhere
+uvx lattis server
 ```
 
-Run the server (API + web UI):
+Open `http://localhost:8000` for the web UI, or run `uvx lattis` from another machine pointing at your server.
+
+## What you get
+
+- **Server + clients**: FastAPI backend, Textual TUI, bundled web UI
+- **Persistent conversations**: threads stored in SQLite, survive restarts
+- **Pluggable agents**: different agents per thread, swap anytime
+- **Works anywhere**: if it can hit HTTP, it can use your agents
+
+## The setup I use
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Linux server (Tailscale)                 │
+│                      lattis server                          │
+│                           :8000                             │
+└─────────────────────────────────────────────────────────────┘
+        ▲                    ▲                    ▲
+        │                    │                    │
+   ┌────┴────┐         ┌─────┴─────┐        ┌────┴────┐
+   │  laptop │         │   phone   │        │  tablet │
+   │   TUI   │         │  web UI   │        │  web UI │
+   └─────────┘         └───────────┘        └─────────┘
+```
+
+Threads persist on the server. I can start something on my laptop, continue on my phone, come back to it days later.
+
+## Agents
+
+Lattis discovers agents automatically from:
+
+1. **Built-ins**: `assistant`, `poetry` (included with Lattis)
+2. **Entry points**: any installed package that registers with `lattis.agents`
+3. **Explicit specs**: `module:attr` paths via `--agents` or `AGENT_PLUGINS`
+
+[Binsmith](https://github.com/caesarnine/binsmith) is what started all this. Now it's just another plugin:
 
 ```bash
-uv run lattis server
+uv pip install binsmith
+uvx lattis --agent binsmith
 ```
 
-Then open `http://localhost:8000`.
+### Building your own agent
+
+The simplest case - just export a pydantic-ai Agent:
+
+```python
+# my_agent.py
+from pydantic_ai import Agent
+
+plugin = Agent("google-gla:gemini-2.0-flash", system_prompt="You are helpful.")
+```
+
+```bash
+uvx lattis --agents my_agent:plugin
+```
+
+For more control (custom dependencies, lifecycle hooks), use the plugin API:
+
+```python
+from pydantic_ai import Agent
+from lattis.plugins import AgentPlugin, AgentRunContext
+
+def create_agent(model: str) -> Agent:
+    return Agent(model, system_prompt="...")
+
+def create_deps(ctx: AgentRunContext):
+    # Access ctx.workspace, ctx.project_root, ctx.session_id, etc.
+    return MyDeps(...)
+
+plugin = AgentPlugin(
+    id="my-agent",
+    name="My Agent",
+    create_agent=create_agent,
+    create_deps=create_deps,
+)
+```
+
+Register via entry point in `pyproject.toml`:
+
+```toml
+[project.entry-points."lattis.agents"]
+my-agent = "my_package:plugin"
+```
 
 ## CLI
 
 ```bash
-lattis                 # Run the TUI (default)
-lattis tui             # Run the TUI explicitly
-lattis server          # Run the API server (and web UI, if built)
+lattis                 # TUI (default)
+lattis tui             # TUI explicitly
+lattis server          # API server + web UI
 ```
 
-### `lattis tui`
+### TUI options
 
 ```
---server <url>          Connect to a specific server URL
---local                 Force local mode (skip server auto-discovery)
---agent <id|name>       Default agent for local/in-process mode
---agents <specs>        Extra plugins (comma-separated `module:attr` specs) for local/in-process mode
+--server <url>     Connect to a remote server
+--local            Skip server discovery, run in-process
+--agent <id>       Default agent (local mode)
+--agents <specs>   Extra plugins to load (local mode)
 ```
 
-By default, the TUI auto-discovers a server on `http://127.0.0.1:8000` and connects if it matches the current project;
-otherwise it runs in local (in-process) mode.
+The TUI auto-discovers a server on `localhost:8000` if one is running for the same project. Use `--server` to point at a remote machine.
 
-### `lattis server`
+### Server options
 
 ```
---host <host>           Host interface to bind (default: 127.0.0.1)
---port <port>           Port to bind (default: 8000)
---reload                Enable auto-reload
---agent <id|name>       Default agent id or name
---agents <specs>        Extra plugins (comma-separated `module:attr` specs)
+--host <host>      Interface to bind (default: 127.0.0.1)
+--port <port>      Port (default: 8000)
+--reload           Auto-reload on code changes
+--agent <id>       Default agent
+--agents <specs>   Extra plugins to load
 ```
 
-## Agents
+## TUI commands
 
-Built-in agents:
-
-- `assistant` - a general-purpose default agent
-- `poetry` - a simple example agent
-
-Optional plugins:
-
-- `binsmith` - a toolkit-focused developer agent; install `binsmith` or run `uvx binsmith`
-
-### Select an agent per thread
-
-- **TUI**: use `/agent`, `/agent list`, `/agent set <id|number>`, `/agent default`
-- **Web UI**: use the sidebar agent selector
-- **API**: `PATCH /sessions/{session_id}/threads/{thread_id}/state` with `{"agent": "<id-or-name>"}` (or `null` to reset)
-
-### Client integration
-
-See `docs/client-integration.md` for the thin-client API flow (bootstrap, thread state, model options, streaming).
-
-### Add your own agent plugins
-
-Lattis discovers agents automatically from:
-
-1. `lattis.agents.builtins` (included with Lattis)
-2. Python entry points in the group **`lattis.agents`**
-3. Extra `module:attribute` specs via `AGENT_PLUGINS` / `--agents`
-
-Entry point example (`pyproject.toml` in your plugin package):
-
-```toml
-[project.entry-points."lattis.agents"]
-my-agent = "my_package.my_agent:plugin"
 ```
-
-Your `plugin` can be:
-
-- an `AgentPlugin`, or
-- a `pydantic_ai.Agent`, or
-- a callable that returns an `Agent` (optionally taking `model`).
-
-For frictionless integrations, export a `pydantic_ai.Agent` directly:
-
-```python
-from pydantic_ai import Agent
-
-plugin = Agent("google-gla:gemini-3-flash-preview")
-```
-
-If you need metadata or hooks, use the public plugin API:
-
-```python
-from lattis.plugins import AgentPlugin, list_known_models
-```
-
-Or use the helper to wrap an `Agent` or factory:
-
-```python
-from pydantic_ai import Agent
-from lattis.plugins import plugin_from
-
-plugin = plugin_from(Agent("google-gla:gemini-3-flash-preview"), id="my-agent", name="My Agent")
+/help                     Show help
+/threads                  List threads
+/thread <id>              Switch to thread (creates if needed)
+/thread new [id]          Create new thread
+/thread delete <id>       Delete thread
+/clear                    Clear current thread
+/agent                    Show current agent
+/agent list [filter]      List available agents
+/agent set <id>           Switch agent for this thread
+/model                    Show current model
+/model list [filter]      List available models
+/model set <name>         Switch model
+/quit                     Exit
 ```
 
 ## Storage
 
-Typical layout (per project):
-
 ```
 .lattis/
-  lattis.db
-  session_id
-  workspace/
+  lattis.db          # SQLite - threads, messages, state
+  session_id         # Persistent session identifier
+  workspace/         # Shared directory for agents that need it
 ```
 
 ## Configuration
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `AGENT_DEFAULT` | `assistant` | Default agent id/name (server + local mode) |
-| `AGENT_PLUGINS` | *(unset)* | Extra plugins (`module:attr`, comma-separated) |
-| `LATTIS_SERVER_URL` | *(unset)* | Server URL for clients that connect over HTTP |
-| `LATTIS_PROJECT_ROOT` | *(cwd)* | Project root used for storage |
-| `LATTIS_DATA_DIR` | *(derived)* | Override the data directory |
-| `LATTIS_DATA_DIR_NAME` | `lattis` | Data directory name used when deriving `LATTIS_DATA_DIR` |
-| `LATTIS_WORKSPACE_DIR` | *(derived)* | Override the workspace directory |
-| `LATTIS_DB_PATH` | *(derived)* | Override the SQLite DB path |
-| `LATTIS_SESSION_FILE` | *(derived)* | Override the session id file path |
-| `LATTIS_SESSION_ID` | *(unset)* | Force a specific session id |
+| `AGENT_DEFAULT` | `assistant` | Default agent |
+| `AGENT_PLUGINS` | | Extra plugins (comma-separated `module:attr`) |
+| `LATTIS_SERVER_URL` | | Server URL for remote connections |
+| `LATTIS_PROJECT_ROOT` | cwd | Project root for storage |
+| `LATTIS_DATA_DIR` | `.lattis` | Data directory |
+| `LATTIS_WORKSPACE_DIR` | | Override workspace location |
+
+## Requirements
+
+- Python 3.12+
+- [uv](https://docs.astral.sh/uv/) (recommended)
+- An API key for at least one model provider (Gemini, Anthropic, OpenAI)
+
+```bash
+export GEMINI_API_KEY=...     # Google
+export ANTHROPIC_API_KEY=...  # Anthropic
+export OPENAI_API_KEY=...     # OpenAI
+```
 
 ## Web UI development
 
-The server serves the web UI from `lattis/web/static` when it exists.
+The web UI is bundled from `frontend/`. To rebuild:
 
 ```bash
 cd frontend
 npm install
 npm run build
 ```
+
+Static files are served from `lattis/web/static` when present.

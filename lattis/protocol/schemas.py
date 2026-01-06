@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Literal
-
 from pydantic import BaseModel
 from pydantic_ai.ui.vercel_ai.request_types import UIMessage
 
@@ -81,5 +79,4 @@ class ServerInfoResponse(BaseModel):
     project_root: str
     data_dir: str
     workspace_dir: str
-    workspace_mode: Literal["central", "local"]
     agent_name: str | None = None

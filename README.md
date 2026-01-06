@@ -57,7 +57,6 @@ otherwise it runs in local (in-process) mode.
 --host <host>           Host interface to bind (default: 127.0.0.1)
 --port <port>           Port to bind (default: 8000)
 --reload                Enable auto-reload
---workspace             Workspace mode: local | central
 --agent <id|name>       Default agent id or name
 --agents <specs>        Extra plugins (comma-separated `module:attr` specs)
 ```
@@ -129,12 +128,7 @@ plugin = plugin_from(Agent("google-gla:gemini-3-flash-preview"), id="my-agent", 
 
 ## Storage
 
-Workspace modes:
-
-- `local` (default): per-project `.lattis/` under the current directory
-- `central`: `~/.lattis/`
-
-Typical layout:
+Typical layout (per project):
 
 ```
 .lattis/
@@ -149,9 +143,8 @@ Typical layout:
 |----------|---------|-------------|
 | `AGENT_DEFAULT` | `assistant` | Default agent id/name (server + local mode) |
 | `AGENT_PLUGINS` | *(unset)* | Extra plugins (`module:attr`, comma-separated) |
-| `LATTIS_WORKSPACE_MODE` | `local` | `local` (per-project) or `central` (`~/.lattis`) |
 | `LATTIS_SERVER_URL` | *(unset)* | Server URL for clients that connect over HTTP |
-| `LATTIS_PROJECT_ROOT` | *(cwd)* | Project root used for `local` storage mode |
+| `LATTIS_PROJECT_ROOT` | *(cwd)* | Project root used for storage |
 | `LATTIS_DATA_DIR` | *(derived)* | Override the data directory |
 | `LATTIS_DATA_DIR_NAME` | `lattis` | Data directory name used when deriving `LATTIS_DATA_DIR` |
 | `LATTIS_WORKSPACE_DIR` | *(derived)* | Override the workspace directory |

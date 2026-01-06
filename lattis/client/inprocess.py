@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Literal
+from typing import Iterable
 
 import httpx
 from fastapi import FastAPI
@@ -23,11 +23,10 @@ class InProcessServer:
 def create_inprocess_client(
     *,
     project_root: Path,
-    workspace_mode: Literal["central", "local"] = "local",
     agent_specs: Iterable[str] | None = None,
     default_agent: str | None = None,
 ) -> tuple[AgentClient, InProcessServer]:
-    config = load_storage_config(project_root=project_root, workspace_mode=workspace_mode)
+    config = load_storage_config(project_root=project_root)
     registry = load_registry(plugin_specs=agent_specs, default_spec=default_agent)
     app = create_app(config, registry=registry)
     transport = httpx.ASGITransport(app=app)

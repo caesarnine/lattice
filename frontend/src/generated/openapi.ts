@@ -273,11 +273,6 @@ export interface components {
       version: string;
       /** Workspace Dir */
       workspace_dir: string;
-      /**
-       * Workspace Mode
-       * @enum {string}
-       */
-      workspace_mode: "central" | "local";
     };
     /** SessionBootstrapResponse */
     SessionBootstrapResponse: {

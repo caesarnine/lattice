@@ -32,7 +32,6 @@ async def info(ctx: AppContext = Depends(get_ctx)) -> ServerInfoResponse:
         project_root=str(ctx.project_root),
         data_dir=str(ctx.config.data_dir),
         workspace_dir=str(ctx.workspace),
-        workspace_mode=ctx.config.workspace_mode,
         agent_name=default_plugin.name,
     )
 

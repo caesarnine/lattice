@@ -11,7 +11,6 @@ def test_resolve_storage_config_is_pure(tmp_path: Path) -> None:
 
     config = resolve_storage_config(
         project_root=tmp_path,
-        workspace_mode="local",
         data_dir=data_dir,
         workspace_dir=workspace_dir,
     )
@@ -28,7 +27,6 @@ def test_load_storage_config_creates_dirs(tmp_path: Path) -> None:
 
     config = load_storage_config(
         project_root=tmp_path,
-        workspace_mode="local",
         data_dir=data_dir,
         workspace_dir=workspace_dir,
     )

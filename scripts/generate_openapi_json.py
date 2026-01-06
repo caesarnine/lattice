@@ -30,7 +30,6 @@ def main() -> None:
             session_id_path=data_dir / "session_id",
             workspace_dir=workspace_dir,
             project_root=Path.cwd(),
-            workspace_mode="local",
         )
         app = create_app(config=config)
         schema = app.openapi()

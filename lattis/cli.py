@@ -19,7 +19,6 @@ from lattis.settings.env import (
     AGENT_PLUGINS,
     LATTIS_PROJECT_ROOT,
     LATTIS_SERVER_URL,
-    LATTIS_WORKSPACE_MODE,
     read_env,
 )
 from lattis.tui.app import run_tui
@@ -138,8 +137,6 @@ def _add_tui_args(parser: argparse.ArgumentParser) -> None:
 
 
 def _add_server_args(parser: argparse.ArgumentParser) -> None:
-    env_workspace = (read_env(LATTIS_WORKSPACE_MODE) or "").strip().lower()
-    default_workspace = "central" if env_workspace == "central" else "local"
     parser.add_argument(
         "--host",
         default="127.0.0.1",
@@ -155,12 +152,6 @@ def _add_server_args(parser: argparse.ArgumentParser) -> None:
         "--reload",
         action="store_true",
         help="Enable auto-reload",
-    )
-    parser.add_argument(
-        "--workspace",
-        choices=("local", "central"),
-        default=default_workspace,
-        help="Workspace mode (default: %(default)s)",
     )
     parser.add_argument(
         "--agent",
@@ -191,7 +182,6 @@ def _run_server_command(args: argparse.Namespace) -> None:
     agent_specs = _parse_agent_specs(getattr(args, "agents", None))
     _apply_server_env_defaults(
         project_root=project_root,
-        workspace_mode=args.workspace,
         default_agent=getattr(args, "agent", None),
         agent_specs=agent_specs,
     )
@@ -254,7 +244,6 @@ def _spawn_local_server(
 
     env = _build_server_env(
         project_root=project_root,
-        workspace_mode="local",
         default_agent=default_agent,
         agent_specs=agent_specs,
     )
@@ -361,14 +350,12 @@ def _parse_agent_specs(value: str | None) -> list[str] | None:
 def _apply_server_env_defaults(
     *,
     project_root: Path,
-    workspace_mode: str,
     default_agent: str | None,
     agent_specs: list[str] | None,
 ) -> None:
     _populate_server_env(
         os.environ,
         project_root=project_root,
-        workspace_mode=workspace_mode,
         default_agent=default_agent,
         agent_specs=agent_specs,
         use_defaults=True,
@@ -378,7 +365,6 @@ def _apply_server_env_defaults(
 def _build_server_env(
     *,
     project_root: Path,
-    workspace_mode: str,
     default_agent: str | None,
     agent_specs: list[str] | None,
 ) -> dict[str, str]:
@@ -386,7 +372,6 @@ def _build_server_env(
     _populate_server_env(
         env,
         project_root=project_root,
-        workspace_mode=workspace_mode,
         default_agent=default_agent,
         agent_specs=agent_specs,
         use_defaults=False,
@@ -398,7 +383,6 @@ def _populate_server_env(
     env: dict[str, str],
     *,
     project_root: Path,
-    workspace_mode: str,
     default_agent: str | None,
     agent_specs: list[str] | None,
     use_defaults: bool,
@@ -410,7 +394,6 @@ def _populate_server_env(
             env[key] = value
 
     set_value(LATTIS_PROJECT_ROOT, str(project_root))
-    set_value(LATTIS_WORKSPACE_MODE, workspace_mode)
     if default_agent is not None:
         set_value(AGENT_DEFAULT, str(default_agent))
     if agent_specs is not None:

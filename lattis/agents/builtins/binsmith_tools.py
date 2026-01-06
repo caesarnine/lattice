@@ -8,7 +8,9 @@ import tempfile
 from pathlib import Path
 from typing import Any, TypedDict
 
-from lattis.settings.env import LATTIS_GLOBAL_BIN, read_env
+from lattis.settings.env import read_env
+
+BINSMITH_GLOBAL_BIN = "BINSMITH_GLOBAL_BIN"
 
 
 class _ToolCacheEntry(TypedDict, total=False):
@@ -76,7 +78,7 @@ def _save_tool_cache(path: Path, tools: dict[str, _ToolCacheEntry]) -> None:
 
 
 def _resolve_global_bin() -> Path | None:
-    override = read_env(LATTIS_GLOBAL_BIN)
+    override = read_env(BINSMITH_GLOBAL_BIN)
     if override:
         value = override.strip()
         if value.lower() in {"0", "false", "no", "off", "disable", "disabled"}:

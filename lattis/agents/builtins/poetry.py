@@ -5,7 +5,7 @@ from functools import lru_cache
 from pydantic_ai import Agent, RunContext
 
 from lattis.agents.plugin import AgentPlugin, list_known_models
-from lattis.settings.env import AGENT_MODEL, LATTIS_MODEL, first_env
+from lattis.settings.env import AGENT_MODEL, first_env
 
 
 SYSTEM_PROMPT = """\
@@ -23,9 +23,7 @@ When useful, include a short title on the first line.
 
 
 POETRY_AGENT_MODEL = "POETRY_AGENT_MODEL"
-DEFAULT_MODEL = (
-    first_env(POETRY_AGENT_MODEL, AGENT_MODEL, LATTIS_MODEL) or "google-gla:gemini-3-flash-preview"
-)
+DEFAULT_MODEL = first_env(POETRY_AGENT_MODEL, AGENT_MODEL) or "google-gla:gemini-3-flash-preview"
 
 
 @lru_cache(maxsize=8)

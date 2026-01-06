@@ -66,7 +66,7 @@ otherwise it runs in local (in-process) mode.
 
 Built-in agents:
 
-- `lattis` — a script-building developer agent that can write reusable, composable tools
+- `binsmith` — a script-building developer agent that can write reusable, composable tools
 - `poetry` — a simple example agent
 
 ### Select an agent per thread
@@ -120,13 +120,10 @@ Typical layout:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LATTIS_MODEL` | *(unset)* | Default model name (also read from `AGENT_MODEL`) |
-| `AGENT_DEFAULT` | `lattis` | Default agent id/name (server + local mode) |
+| `AGENT_DEFAULT` | `binsmith` | Default agent id/name (server + local mode) |
 | `AGENT_PLUGINS` | *(unset)* | Extra plugins (`module:attr`, comma-separated) |
 | `LATTIS_WORKSPACE_MODE` | `local` | `local` (per-project) or `central` (`~/.lattis`) |
 | `LATTIS_SERVER_URL` | *(unset)* | Server URL for clients that connect over HTTP |
-| `LATTIS_LOGFIRE` | `0` | Enable Logfire telemetry (used by the built-in `lattis` agent) |
-| `LATTIS_GLOBAL_BIN` | *(unset)* | Where the built-in `lattis` agent can symlink tools for global use |
 | `LATTIS_PROJECT_ROOT` | *(cwd)* | Project root used for `local` storage mode |
 | `LATTIS_DATA_DIR` | *(derived)* | Override the data directory |
 | `LATTIS_WORKSPACE_DIR` | *(derived)* | Override the workspace directory |

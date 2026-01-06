@@ -6,7 +6,7 @@ from typing import Iterable, Sequence
 
 from lattis.agents.plugin import AgentPlugin
 from lattis.domain.sessions import SessionStore
-from lattis.settings.env import AGENT_MODEL, LATTIS_MODEL, first_env
+from lattis.settings.env import AGENT_MODEL, first_env
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +56,7 @@ def resolve_default_model(plugin: AgentPlugin, *, models: Sequence[str] | None =
     configured = (plugin.default_model or "").strip()
     if configured:
         return configured
-    env_model = first_env(AGENT_MODEL, LATTIS_MODEL)
+    env_model = first_env(AGENT_MODEL)
     if env_model:
         return env_model
     models = list_models(plugin) if models is None else list(models)

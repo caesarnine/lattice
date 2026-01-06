@@ -12,14 +12,17 @@ import logfire
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 
-from lattis.agents.builtins.lattis_tools import (
+from lattis.agents.builtins.binsmith_tools import (
     discover_tools,
     format_tools_section,
     sync_global_tools,
 )
 from lattis.agents.plugin import AgentPlugin, AgentRunContext, list_known_models
-from lattis.settings.env import LATTIS_LOGFIRE, LATTIS_MODEL, read_bool_env, read_env
+from lattis.settings.env import AGENT_MODEL, first_env, read_bool_env
 from lattis.settings.workspace import ensure_workspace
+
+BINSMITH_MODEL = "BINSMITH_MODEL"
+BINSMITH_LOGFIRE = "BINSMITH_LOGFIRE"
 
 
 class BashExecutionResult(BaseModel):
@@ -95,7 +98,7 @@ class BashExecutor:
 
 
 SYSTEM_PROMPT = """\
-You are Lattis, a toolkit-focused AI agent that builds and refines a personal toolbox over time.
+You are Binsmith, a toolkit-focused AI agent that builds and refines a personal toolbox over time.
 
 ## Your Environment
 
@@ -281,14 +284,14 @@ class AgentDeps:
 
 
 def _configure_telemetry() -> None:
-    enabled = read_bool_env(LATTIS_LOGFIRE)
+    enabled = read_bool_env(BINSMITH_LOGFIRE)
     if not enabled:
         return
     logfire.configure(send_to_logfire=True, console=False)
     logfire.instrument_pydantic_ai()
 
 
-DEFAULT_MODEL = read_env(LATTIS_MODEL) or "google-gla:gemini-3-flash-preview"
+DEFAULT_MODEL = first_env(BINSMITH_MODEL, AGENT_MODEL) or "google-gla:gemini-3-flash-preview"
 
 
 def _build_agent(model_name: str) -> Agent[AgentDeps, str]:
@@ -381,8 +384,8 @@ def _on_complete(ctx: AgentRunContext, result: object) -> None:
 
 
 plugin = AgentPlugin(
-    id="lattis",
-    name="Lattis",
+    id="binsmith",
+    name="Binsmith",
     create_agent=_create_agent,
     create_deps=_create_deps,
     default_model=DEFAULT_MODEL,

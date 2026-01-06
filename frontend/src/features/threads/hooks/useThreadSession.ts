@@ -11,7 +11,7 @@ import {
   type AgentInfo,
   type AgentSelection,
   type ModelSelection
-} from "@/services/latticeApi";
+} from "@/services/lattisApi";
 import { type UiMessage } from "@/services/vercel";
 
 const STATUS_TIMEOUT_MS = 2000;

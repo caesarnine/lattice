@@ -10,7 +10,7 @@ export default defineConfig({
     }
   },
   build: {
-    outDir: "../lattice/web/static",
+    outDir: "../lattis/web/static",
     emptyOutDir: true
   },
   server: {

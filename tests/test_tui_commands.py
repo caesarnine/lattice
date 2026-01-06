@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 
-from lattice.tui.commands import CommandSuggester, parse_command
+from lattis.tui.commands import CommandSuggester, parse_command
 
 
 def _run(coro):

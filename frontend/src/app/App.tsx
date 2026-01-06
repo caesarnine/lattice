@@ -6,7 +6,7 @@ import { useChatItems } from "@/features/chat/hooks/useChatItems";
 import { useChatStream } from "@/features/chat/hooks/useChatStream";
 import { ThreadPanel } from "@/features/threads/components/ThreadPanel";
 import { useThreadSession } from "@/features/threads/hooks/useThreadSession";
-import { SERVER_URL } from "@/services/latticeApi";
+import { SERVER_URL } from "@/services/lattisApi";
 
 export default function App() {
   const [isThreadPanelOpen, setIsThreadPanelOpen] = React.useState(false);

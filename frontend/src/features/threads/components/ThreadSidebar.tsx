@@ -7,7 +7,7 @@ import { ThreadSidebarFooter } from "@/features/threads/components/ThreadSidebar
 import { Button } from "@/shared/ui/button";
 import { ScrollArea } from "@/shared/ui/scroll-area";
 import { Separator } from "@/shared/ui/separator";
-import { type AgentInfo } from "@/services/latticeApi";
+import { type AgentInfo } from "@/services/lattisApi";
 
 type ThreadSection = {
   list: string[];
@@ -65,7 +65,7 @@ export function ThreadSidebar({
         <div className="flex items-center justify-between">
           <div>
             <div className="text-xs font-semibold uppercase tracking-[0.3em] text-ink-500">
-              Lattice
+              Lattis
             </div>
             <div className="text-2xl font-display text-ink-900">Threads</div>
           </div>

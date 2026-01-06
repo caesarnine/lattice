@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from lattice.settings.storage import load_or_create_session_id, load_storage_config, resolve_storage_config
+from lattis.settings.storage import load_or_create_session_id, load_storage_config, resolve_storage_config
 
 
 def test_resolve_storage_config_is_pure(tmp_path: Path) -> None:

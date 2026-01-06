@@ -1,7 +1,7 @@
-Lattice Web UI
+Lattis Web UI
 ===============
 
-The web UI is a React app that talks to the Lattice server over the Vercel AI UI stream.
+The web UI is a React app that talks to the Lattis server over the Vercel AI UI stream.
 It shares sessions/threads with the TUI, so you can switch between clients.
 
 ---
@@ -9,7 +9,7 @@ It shares sessions/threads with the TUI, so you can switch between clients.
 ## Requirements
 
 - Node 18+
-- Lattice server running locally or remotely
+- Lattis server running locally or remotely
 
 ---
 
@@ -25,7 +25,7 @@ By default it targets `http://localhost:8000`.
 To point at a different server, create `frontend/.env.local`:
 
 ```bash
-VITE_LATTICE_SERVER_URL=http://your-server:8000
+VITE_LATTIS_SERVER_URL=http://your-server:8000
 ```
 
 ---

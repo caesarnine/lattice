@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from lattice.agents.plugin import AgentPlugin
-from lattice.agents.registry import AgentRegistry
-from lattice.domain.agents import (
+from lattis.agents.plugin import AgentPlugin
+from lattis.agents.registry import AgentRegistry
+from lattis.domain.agents import (
     resolve_requested_agent,
     select_agent_for_thread,
     set_thread_agent,
 )
-from lattice.domain.sessions import ThreadSettings
+from lattis.domain.sessions import ThreadSettings
 
 
 class FakeStore:

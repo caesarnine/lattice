@@ -5,19 +5,19 @@ import json
 import tempfile
 from pathlib import Path
 
-from lattice.settings.storage import StorageConfig
-from lattice.server.app import create_app
+from lattis.settings.storage import StorageConfig
+from lattis.server.app import create_app
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate OpenAPI JSON for the Lattice server.")
+    parser = argparse.ArgumentParser(description="Generate OpenAPI JSON for the Lattis server.")
     parser.add_argument("--out", required=True, help="Output path for openapi.json")
     args = parser.parse_args()
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory(prefix="lattice-openapi-") as tmpdir:
+    with tempfile.TemporaryDirectory(prefix="lattis-openapi-") as tmpdir:
         tmp = Path(tmpdir)
         data_dir = tmp / "data"
         workspace_dir = tmp / "workspace"
@@ -26,7 +26,7 @@ def main() -> None:
 
         config = StorageConfig(
             data_dir=data_dir,
-            db_path=data_dir / "lattice.db",
+            db_path=data_dir / "lattis.db",
             session_id_path=data_dir / "session_id",
             workspace_dir=workspace_dir,
             project_root=Path.cwd(),

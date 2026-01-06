@@ -1068,7 +1068,7 @@ wheels = [
 ]
 
 [[package]]
-name = "lattice"
+name = "lattis"
 version = "0.4.0"
 source = { editable = "." }
 dependencies = [

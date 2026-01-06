@@ -7,8 +7,8 @@ import { type ChatRole } from "@/features/chat/types";
 
 const ROLE_LABELS: Record<string, string> = {
   user: "You",
-  assistant: "Lattice",
-  thinking: "Lattice (thinking)",
+  assistant: "Lattis",
+  thinking: "Lattis (thinking)",
   system: "System",
   developer: "System",
   tool: "Tool"

@@ -2,7 +2,7 @@ import React from "react";
 
 import { type ChatRole } from "@/features/chat/types";
 import { createId } from "@/shared/ids";
-import { runChatStream } from "@/services/latticeApi";
+import { runChatStream } from "@/services/lattisApi";
 import { type UiStreamEvent } from "@/services/vercel";
 
 type AddMessageInput = {

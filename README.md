@@ -1,6 +1,6 @@
-# Lattice
+# Lattis
 
-Lattice is a pluggable agent toolkit built on **pydantic-ai**: a FastAPI server with a Textual TUI and a bundled web UI.
+Lattis is a pluggable agent toolkit built on **pydantic-ai**: a FastAPI server with a Textual TUI and a bundled web UI.
 Agents are loaded as plugins, and each thread can select a different agent.
 
 ## What you get
@@ -20,13 +20,13 @@ Agents are loaded as plugins, and each thread can select a different agent.
 
 ```bash
 uv sync
-uv run lattice
+uv run lattis
 ```
 
 Run the server (API + web UI):
 
 ```bash
-uv run lattice server
+uv run lattis server
 ```
 
 Then open `http://localhost:8000`.
@@ -34,12 +34,12 @@ Then open `http://localhost:8000`.
 ## CLI
 
 ```bash
-lattice                 # Run the TUI (default)
-lattice tui             # Run the TUI explicitly
-lattice server          # Run the API server (and web UI, if built)
+lattis                 # Run the TUI (default)
+lattis tui             # Run the TUI explicitly
+lattis server          # Run the API server (and web UI, if built)
 ```
 
-### `lattice tui`
+### `lattis tui`
 
 ```
 --server <url>          Connect to a specific server URL
@@ -51,7 +51,7 @@ lattice server          # Run the API server (and web UI, if built)
 By default, the TUI auto-discovers a server on `http://127.0.0.1:8000` and connects if it matches the current project;
 otherwise it runs in local (in-process) mode.
 
-### `lattice server`
+### `lattis server`
 
 ```
 --host <host>           Host interface to bind (default: 127.0.0.1)
@@ -66,7 +66,7 @@ otherwise it runs in local (in-process) mode.
 
 Built-in agents:
 
-- `lattice` — a script-building developer agent that can write reusable, composable tools
+- `lattis` — a script-building developer agent that can write reusable, composable tools
 - `poetry` — a simple example agent
 
 ### Select an agent per thread
@@ -81,16 +81,16 @@ See `docs/client-integration.md` for the thin-client API flow (bootstrap, thread
 
 ### Add your own agent plugins
 
-Lattice discovers agents automatically from:
+Lattis discovers agents automatically from:
 
-1. `lattice.agents.builtins` (included with Lattice)
-2. Python entry points in the group **`lattice.agents`**
+1. `lattis.agents.builtins` (included with Lattis)
+2. Python entry points in the group **`lattis.agents`**
 3. Extra `module:attribute` specs via `AGENT_PLUGINS` / `--agents`
 
 Entry point example (`pyproject.toml` in your plugin package):
 
 ```toml
-[project.entry-points."lattice.agents"]
+[project.entry-points."lattis.agents"]
 my-agent = "my_package.my_agent:plugin"
 ```
 
@@ -104,14 +104,14 @@ Your `plugin` can be:
 
 Workspace modes:
 
-- `local` (default): per-project `.lattice/` under the current directory
-- `central`: `~/.lattice/`
+- `local` (default): per-project `.lattis/` under the current directory
+- `central`: `~/.lattis/`
 
 Typical layout:
 
 ```
-.lattice/
-  lattice.db
+.lattis/
+  lattis.db
   session_id
   workspace/
 ```
@@ -120,23 +120,23 @@ Typical layout:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `LATTICE_MODEL` | *(unset)* | Default model name (also read from `AGENT_MODEL`) |
-| `AGENT_DEFAULT` | `lattice` | Default agent id/name (server + local mode) |
+| `LATTIS_MODEL` | *(unset)* | Default model name (also read from `AGENT_MODEL`) |
+| `AGENT_DEFAULT` | `lattis` | Default agent id/name (server + local mode) |
 | `AGENT_PLUGINS` | *(unset)* | Extra plugins (`module:attr`, comma-separated) |
-| `LATTICE_WORKSPACE_MODE` | `local` | `local` (per-project) or `central` (`~/.lattice`) |
-| `LATTICE_SERVER_URL` | *(unset)* | Server URL for clients that connect over HTTP |
-| `LATTICE_LOGFIRE` | `0` | Enable Logfire telemetry (used by the built-in `lattice` agent) |
-| `LATTICE_GLOBAL_BIN` | *(unset)* | Where the built-in `lattice` agent can symlink tools for global use |
-| `LATTICE_PROJECT_ROOT` | *(cwd)* | Project root used for `local` storage mode |
-| `LATTICE_DATA_DIR` | *(derived)* | Override the data directory |
-| `LATTICE_WORKSPACE_DIR` | *(derived)* | Override the workspace directory |
-| `LATTICE_DB_PATH` | *(derived)* | Override the SQLite DB path |
-| `LATTICE_SESSION_FILE` | *(derived)* | Override the session id file path |
-| `LATTICE_SESSION_ID` | *(unset)* | Force a specific session id |
+| `LATTIS_WORKSPACE_MODE` | `local` | `local` (per-project) or `central` (`~/.lattis`) |
+| `LATTIS_SERVER_URL` | *(unset)* | Server URL for clients that connect over HTTP |
+| `LATTIS_LOGFIRE` | `0` | Enable Logfire telemetry (used by the built-in `lattis` agent) |
+| `LATTIS_GLOBAL_BIN` | *(unset)* | Where the built-in `lattis` agent can symlink tools for global use |
+| `LATTIS_PROJECT_ROOT` | *(cwd)* | Project root used for `local` storage mode |
+| `LATTIS_DATA_DIR` | *(derived)* | Override the data directory |
+| `LATTIS_WORKSPACE_DIR` | *(derived)* | Override the workspace directory |
+| `LATTIS_DB_PATH` | *(derived)* | Override the SQLite DB path |
+| `LATTIS_SESSION_FILE` | *(derived)* | Override the session id file path |
+| `LATTIS_SESSION_ID` | *(unset)* | Force a specific session id |
 
 ## Web UI development
 
-The server serves the web UI from `lattice/web/static` when it exists.
+The server serves the web UI from `lattis/web/static` when it exists.
 
 ```bash
 cd frontend

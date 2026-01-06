@@ -9,9 +9,10 @@ wheels/
 # Virtual environments
 .venv
 
-# Lattice
+# Lattis
 .lattice
-lattice/web/static/
+.lattis
+lattis/web/static/
 
 # Node / frontend
 node_modules/

@@ -12,7 +12,8 @@ wheels/
 # Lattis
 .lattice
 .lattis
-lattis/web/static/
+lattis/web/static/*
+!lattis/web/static/.gitkeep
 
 # Node / frontend
 node_modules/

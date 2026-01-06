@@ -51,6 +51,9 @@ packages = ["lattis"]
 [tool.hatch.build.targets.wheel.force-include]
 "lattis/web/static" = "lattis/web/static"
 
+[tool.hatch.build.targets.sdist.force-include]
+"lattis/web/static" = "lattis/web/static"
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

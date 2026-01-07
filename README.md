@@ -1,66 +1,45 @@
 # Lattis
 
-Run AI agents on a server, interact from anywhere.
+Self-hosted agent server with a terminal UI, web UI, and persistent threads.
 
-I built an agent I liked ([Binsmith](https://github.com/caesarnine/binsmith)) and wanted to use it from my laptop, my phone, wherever. Lattis is what emerged: a server that hosts agents with a TUI for terminals and a web UI for browsers.
-
-I run it on a Linux box in my Tailscale network. Start a conversation on my laptop, pick it up on my phone, everything stays in sync.
+Lattis runs the agents on a server. Clients (TUI or browser) connect over HTTP. Threads live in SQLite so you can start on one device and continue on another.
 
 ## Quick start
 
 ```bash
-# Run the TUI (starts a local server automatically)
+# Local server + TUI
 uvx lattis
 
-# Or run the server explicitly, then connect from anywhere
+# Server only
 uvx lattis server
+# Then open http://localhost:8000
+
+# Connect from another machine
+uvx lattis --server http://your-server:8000
 ```
 
-Open `http://localhost:8000` for the web UI, or run `uvx lattis` from another machine pointing at your server.
+## Why Lattis
 
-## What you get
+- Persistent threads stored in SQLite under `.lattis/`
+- TUI-first workflow with a bundled web UI
+- Pluggable agents and per-thread agent selection
+- Local-first storage, no hosted service required
 
-- **Server + clients**: FastAPI backend, Textual TUI, bundled web UI
-- **Persistent conversations**: threads stored in SQLite, survive restarts
-- **Pluggable agents**: different agents per thread, swap anytime
-- **Works anywhere**: if it can hit HTTP, it can use your agents
+## Mental model
 
-## The setup I use
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Linux server (Tailscale)                 │
-│                      lattis server                          │
-│                           :8000                             │
-└─────────────────────────────────────────────────────────────┘
-        ▲                    ▲                    ▲
-        │                    │                    │
-   ┌────┴────┐         ┌─────┴─────┐        ┌────┴────┐
-   │  laptop │         │   phone   │        │  tablet │
-   │   TUI   │         │  web UI   │        │  web UI │
-   └─────────┘         └───────────┘        └─────────┘
-```
-
-Threads persist on the server. I can start something on my laptop, continue on my phone, come back to it days later.
+- The server owns threads, messages, and storage
+- Clients are just views into a thread
+- Each thread has an agent and model; you can switch either at any time
 
 ## Agents
 
-Lattis discovers agents automatically from:
+Lattis discovers agents from:
 
-1. **Built-ins**: `assistant`, `poetry` (included with Lattis)
-2. **Entry points**: any installed package that registers with `lattis.agents`
-3. **Explicit specs**: `module:attr` paths via `--agents` or `AGENT_PLUGINS`
+1. Built-ins: `assistant`, `poetry`
+2. Entry points: packages that register `lattis.agents`
+3. Explicit specs: `module:attr` via `--agents` or `AGENT_PLUGINS`
 
-[Binsmith](https://github.com/caesarnine/binsmith) is what started all this. Now it's just another plugin:
-
-```bash
-uv pip install binsmith
-uvx lattis --agent binsmith
-```
-
-### Building your own agent
-
-The simplest case - just export a pydantic-ai Agent:
+Simple agent using `pydantic-ai`:
 
 ```python
 # my_agent.py
@@ -73,7 +52,7 @@ plugin = Agent("google-gla:gemini-2.0-flash", system_prompt="You are helpful.")
 uvx lattis --agents my_agent:plugin
 ```
 
-For more control (custom dependencies, lifecycle hooks), use the plugin API:
+Full plugin with custom dependencies:
 
 ```python
 from pydantic_ai import Agent
@@ -104,57 +83,26 @@ my-agent = "my_package:plugin"
 ## CLI
 
 ```bash
-lattis                 # TUI (default)
+lattis                 # TUI (starts a local server)
 lattis tui             # TUI explicitly
 lattis server          # API server + web UI
 ```
 
-### TUI options
+Common options:
 
 ```
 --server <url>     Connect to a remote server
---local            Skip server discovery, run in-process
---agent <id>       Default agent (local mode)
---agents <specs>   Extra plugins to load (local mode)
-```
-
-The TUI auto-discovers a server on `localhost:8000` if one is running for the same project. Use `--server` to point at a remote machine.
-
-### Server options
-
-```
---host <host>      Interface to bind (default: 127.0.0.1)
---port <port>      Port (default: 8000)
---reload           Auto-reload on code changes
 --agent <id>       Default agent
---agents <specs>   Extra plugins to load
+--agents <specs>   Extra plugins (comma-separated module:attr)
 ```
 
-## TUI commands
-
-```
-/help                     Show help
-/threads                  List threads
-/thread <id>              Switch to thread (creates if needed)
-/thread new [id]          Create new thread
-/thread delete <id>       Delete thread
-/clear                    Clear current thread
-/agent                    Show current agent
-/agent list [filter]      List available agents
-/agent set <id>           Switch agent for this thread
-/model                    Show current model
-/model list [filter]      List available models
-/model set <name>         Switch model
-/quit                     Exit
-```
-
-## Storage
+## Storage layout
 
 ```
 .lattis/
-  lattis.db          # SQLite - threads, messages, state
+  lattis.db          # Threads, messages, state (SQLite)
   session_id         # Persistent session identifier
-  workspace/         # Shared directory for agents that need it
+  workspace/         # Shared directory for agent tools/data
 ```
 
 ## Configuration
@@ -181,8 +129,6 @@ export OPENAI_API_KEY=...     # OpenAI
 ```
 
 ## Web UI development
-
-The web UI is bundled from `frontend/`. To rebuild:
 
 ```bash
 cd frontend

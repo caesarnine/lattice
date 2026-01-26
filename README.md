@@ -8,12 +8,12 @@
     <td align="center">
       <img src="https://github.com/user-attachments/assets/a0ace246-70db-4c03-be6a-a5077272fa87" width="100%" />
       <br>
-      <b>Terminal UI</b>
+      <b>Web UI</b>
     </td>
     <td align="center">
       <img src="https://github.com/user-attachments/assets/240d00da-ad79-4af8-a101-567869f6121f" width="100%" />
       <br>
-      <b>Web UI</b>
+      <b>Terminal UI</b>
     </td>
   </tr>
 </table>
